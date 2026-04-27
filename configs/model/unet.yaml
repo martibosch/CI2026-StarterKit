@@ -1,0 +1,15 @@
+# @package _global_
+
+model:
+  _target_: starter_kit.baselines.unet.UNetModel
+  n_epochs: ${n_epochs}
+  learning_rate: ${learning_rate}
+  weight_decay: 1e-5
+  best_threshold: 0.99
+  log_csv: true
+
+network:
+  _target_: starter_kit.baselines.unet.UNetwork
+  input_dim: 30
+  base_channels: 32
+  depth: 3
