@@ -1,0 +1,110 @@
+[build-system]
+requires = ["uv_build>=0.9.4,<0.10.0"]
+build-backend = "uv_build"
+
+[project]
+authors = [
+  {name = "Tobias S. Finn"}
+]
+description = "The starter kit for the CI 2026 hackathon"
+license = "MIT"
+name = "ci-2026-starter-kit"
+requires-python = ">=3.10,<3.13"
+version = "1.0"
+
+[tool.codespell]
+# notebook outputs
+ignore-regex = '^\s*"image\/png":\s.*'
+skip = "pixi.lock"
+
+[tool.pixi.dependencies]
+cartopy = "*"
+cmocean = "*"
+dask = "*"
+distributed = "*"
+einops = "*"
+gcsfs = "*"
+h5netcdf = "*"
+h5py = "*"
+huggingface_hub = "*"
+hydra-core = "*"
+hydra-submitit-launcher = "*"
+ipykernel = "*"
+ipywidgets = "*"
+jupyterlab = "*"
+lightning = "*"
+matplotlib = "*"
+netcdf4 = "*"
+numba = "*"
+numpy = "*"
+omegaconf = "*"
+pandas = "*"
+pip = "*"
+python = ">=3.10,<3.13"
+requests = "*"
+rich = "*"
+s3fs = "*"
+scipy = "*"
+setuptools = "*"
+sphinx = "*"
+sphinx-autodoc-typehints = "*"
+sphinx_rtd_theme = "*"
+tensorstore = "*"
+tqdm = "*"
+wandb = "*"
+xarray = "*"
+xesmf = "*"
+zarr = "<3"
+
+[tool.pixi.environments]
+cuda = ["cuda"]
+default = ["cpu"]
+
+[tool.pixi.feature.cpu.dependencies]
+pytorch = "*"
+torchaudio = "*"
+torchvision = "*"
+
+[tool.pixi.feature.cuda.dependencies]
+cuda-version = "12.8.*"
+pytorch = "*"
+pytorch-gpu = "*"
+torchaudio = "*"
+torchvision = "*"
+
+[tool.pixi.feature.cuda.system-requirements]
+cuda = "12.8"
+
+[tool.pixi.pypi-dependencies]
+ci-2026-starter-kit = {path = ".", editable = true}
+snakemake = "*"
+
+[tool.pixi.workspace]
+authors = ["Tobias S. Finn"]
+channels = ["conda-forge", "bioconda"]
+description = "The starter kit for the CI 2026 hackathon"
+name = "ci2026-starter-kit"
+platforms = ["linux-64"]
+version = "1.0.0"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["D", "E", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["starter_kit"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.setuptools.packages.find]
+include = ["starter_kit*"]
+
+[tool.uv.build-backend]
+module-name = "starter_kit"
+module-root = ""

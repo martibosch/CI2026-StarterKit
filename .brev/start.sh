@@ -7,7 +7,7 @@
 # is all that's needed to update setup on new instances.
 set -euo pipefail
 
-REPO_URL="https://github.com/tobifinn/CI2026-StarterKit.git"
+REPO_URL="https://github.com/martibosch/CI2026-StarterKit.git"
 REPO_DIR="/home/ubuntu/workspace"
 
 if [ -d "$REPO_DIR/.git" ]; then
