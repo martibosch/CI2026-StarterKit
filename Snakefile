@@ -17,7 +17,7 @@ DEFAULT_RUNS = {
 
 SCORES_DIR = config.get("scores_dir", "scores")
 LOG_DIR = config.get("log_dir", "logs/snakemake")
-DEVICE = config.get("device", "cpu")
+DEVICE = config.get("device", "cuda")
 EXPERIMENT_GROUP = config.get("experiment_group", "experiments")
 TEAM_NAME = config.get("team_name", "my_team")
 COMMON_OVERRIDES = config.get("overrides", [])

@@ -58,12 +58,7 @@ zarr = "<3"
 
 [tool.pixi.environments]
 cuda = ["cuda"]
-default = ["cpu"]
-
-[tool.pixi.feature.cpu.dependencies]
-pytorch = "*"
-torchaudio = "*"
-torchvision = "*"
+default = ["cuda"]
 
 [tool.pixi.feature.cuda.dependencies]
 cuda-version = "12.8.*"

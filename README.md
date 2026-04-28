@@ -111,17 +111,10 @@ can set up the environment manually as follows:
    cd <your_repo_name>
    ```
 
-1. Install the default Pixi environment:
+1. Install the Pixi environment:
 
    ```bash
    pixi install
-   ```
-
-   On a CUDA 12.8 machine such as the Nvidia Brev launchable, install the
-   CUDA environment instead:
-
-   ```bash
-   pixi install --environment cuda
    ```
 
 1. Enter the Pixi environment:
@@ -130,19 +123,11 @@ can set up the environment manually as follows:
    pixi shell
    ```
 
-   For the CUDA environment, use:
-
-   ```bash
-   pixi shell --environment cuda
-   ```
-
 1. Download the data from HuggingFace to `data/train_data` and unzip the zarr archives:
 
    ```bash
    pixi run snakemake --cores 1 download_data
    ```
-
-   If you are using the CUDA environment, run `pixi run --environment cuda snakemake --cores 1 download_data` instead.
 
 Now you are ready for the next steps: training of your own model, producing
 forecasts, and submitting solutions to the leaderboard.
@@ -155,80 +140,53 @@ between different implemented models.
 
 **New to Hydra?** Hydra is a configuration framework used by all scripts here.
 The short version: every configuration key can be overridden directly on the
-command line as `key=value` (e.g. `device=cuda`), and preset configuration
+command line as `key=value` (e.g. `batch_size=16`), and preset configuration
 groups can be loaded with `+group=name` (e.g. `+experiments=baseline_mlp`).
 You do not need to edit any YAML file to run the provided examples.
 
-The following examples use the baseline multi-layered perceptron (MLP) model.
-When you are not familiar with PyTorch and Hydra, we recommend to execute the
-following steps:
+The recommended experiment workflow uses Snakemake. For example, to train,
+forecast the four validation regions, and evaluate the baseline MLP:
 
-1. Train the baseline MLP model with the default configuration:
+```bash
+pixi run snakemake --cores 1 --config experiments=baseline_mlp
+```
 
-   ```bash
-   python scripts/train.py
-   ```
-
-   This runs on CPU by default. To train on a GPU, pass `device=cuda`:
-
-   ```bash
-   python scripts/train.py device=cuda
-   ```
-
-1. The trained model is saved to `data/models/baseline_mlp/`. The experiment
-   name (here, `baseline_mlp`) controls this path and links training to later
-   steps. A CSV training log is also written there.
+The trained model is saved to `data/models/baseline_mlp/`. The experiment name
+controls this path and links training to later steps. Forecasts are saved under
+`data/forecasts/baseline_mlp/`, and validation scores under
+`scores/baseline_mlp.json`.
 
 Any key in the configuration can be overridden directly on the command line.
 For example, to increase the number of epochs and adjust the learning rate:
 
 ```bash
-python scripts/train.py n_epochs=50 learning_rate=5e-4 device=cuda
+pixi run snakemake --cores 1 --config experiments=baseline_mlp n_epochs=50 learning_rate=5e-4
 ```
 
-You can see all config options by running:
+You can see all train config options by running:
 
 ```bash
-python scripts/train.py --help
+pixi run python scripts/train.py --help
 ```
 
 To switch to a different baseline, use the `+experiment` flag with one of the
 presets under `configs/experiments/`:
 
 ```bash
-python scripts/train.py +experiments=baseline_parametric device=cuda
-python scripts/train.py +experiments=baseline_sundquist device=cuda
+pixi run snakemake --cores 1 --config experiments=baseline_parametric
+pixi run snakemake --cores 1 --config experiments=baseline_sundquist
 ```
 
 ## Forecasting
 
-After your model is trained, you can use the provided `forecast.py` script to
-produce forecasts for the validation and test set. The script loads a trained
-model from a specified path and produces the forecasts. Similarly to the
-training script, the forecasting script is configured with Hydra and allows you
-to flexibly switch between different models and configurations.
+The Snakemake workflow runs validation forecasts automatically after training.
+To generate test forecasts for a trained experiment, run:
 
-As in the training script, the baseline MLP model is used for the following
-steps. Warning, the following steps assume that there is a trained version of the baseline MLP model, otherwise, there will be an error:
+```bash
+pixi run snakemake --cores 1 test_forecasts --config experiments=baseline_mlp
+```
 
-1. Forecast with the baseline MLP model and the test set for ERA5 and region 1:
-
-   ```bash
-   python scripts/forecast.py
-   ```
-
-   This runs on CPU by default. To forecast on a GPU, pass `device=cuda`:
-
-   ```bash
-   python scripts/forecast.py device=cuda
-   ```
-
-   This will produce a file called `data/forecasts/${exp_name}/forecast.nc`.
-   This file contains the forecasts and can be compared to
-   `data/train_data/val_target_era5_region1.nc`
-
-1. The forecast file is saved to `data/forecasts/${exp_name}/forecast.nc`. You
-   can compare this forecast to `data/train_data/test_target_era5_region1.nc`.
+Forecast files are saved under `data/forecasts/${exp_name}/`.
 
 Once again you can overwrite any key in the configuration on the command line.
 For example, you can set a specific model checkpoint and the batch size by
@@ -236,7 +194,7 @@ setting:
 
 ````
 ```bash
-python scripts/forecast.py ckpt_path=data/baseline_mlp/your_favorite_model.ckpt batch_size=8
+pixi run snakemake --cores 1 test_forecasts --config experiments=baseline_mlp batch_size=8
 ```
 ````
 
@@ -246,7 +204,7 @@ Sundqvist baseline implementation, you can use:
 
 ````
 ```bash
-python scripts/forecast.py +experiments=baseline_sundquist
+pixi run snakemake --cores 1 test_forecasts --config experiments=baseline_sundquist
 ```
 ````
 
@@ -474,7 +432,7 @@ example, if you create a model config named `my_model.yaml`, you can train it
 with:
 
 ```bash
-python scripts/train.py model=my_model device=cuda
+pixi run snakemake --cores 1 --config runs=my_model_run overrides='model=my_model'
 ```
 
 To obtain reproducible configurations, we recommend to additionally create a
@@ -483,7 +441,7 @@ new experiment config that references your model config and pass it with the
 `my_experiment.yaml` that references `my_model.yaml`, you can train it with:
 
 ```bash
-python scripts/train.py +experiments=my_experiment device=cuda
+pixi run snakemake --cores 1 --config experiments=my_experiment
 ```
 
 In this case, you no longer need to pass the `model` flag, since it is

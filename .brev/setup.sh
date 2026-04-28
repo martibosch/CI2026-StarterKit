@@ -22,12 +22,11 @@ PIXI_BIN=$(command -v pixi)
 
 # ── 2. Pixi CUDA environment ──────────────────────────────────────────────────
 echo "[setup] Installing Pixi CUDA environment..."
-"$PIXI_BIN" install --manifest-path "$REPO_DIR" --environment cuda
+"$PIXI_BIN" install --manifest-path "$REPO_DIR"
 
 # ── 3. Training data from HuggingFace ─────────────────────────────────────────
 echo "[setup] Downloading training data with Snakemake..."
 cd "$REPO_DIR"
-"$PIXI_BIN" run --manifest-path "$REPO_DIR" --environment cuda \
-    snakemake --cores 1 download_data
+"$PIXI_BIN" run --manifest-path "$REPO_DIR" snakemake --cores 1 download_data
 
-echo "[setup] Done. Enter the environment with: pixi shell --environment cuda"
+echo "[setup] Done. Enter the environment with: pixi shell"
