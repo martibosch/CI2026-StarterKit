@@ -148,7 +148,7 @@ The recommended experiment workflow uses Snakemake. For example, to train,
 forecast the four validation regions, and evaluate the baseline MLP:
 
 ```bash
-pixi run snakemake --cores 1 --config experiments=baseline_mlp
+pixi run snakemake --cores 1 --config runs=baseline_mlp
 ```
 
 The trained model is saved to `data/models/baseline_mlp/`. The experiment name
@@ -156,11 +156,12 @@ controls this path and links training to later steps. Forecasts are saved under
 `data/forecasts/baseline_mlp/`, and validation scores under
 `scores/baseline_mlp.json`.
 
-Any key in the configuration can be overridden directly on the command line.
-For example, to increase the number of epochs and adjust the learning rate:
+Any key in the configuration can be overridden directly on the command line via
+the `extra` config arg, which is passed verbatim to Hydra. For example, to
+increase the number of epochs and adjust the learning rate:
 
 ```bash
-pixi run snakemake --cores 1 --config experiments=baseline_mlp n_epochs=50 learning_rate=5e-4
+pixi run snakemake --cores 1 --config runs=baseline_mlp extra="n_epochs=50 learning_rate=5e-4"
 ```
 
 You can see all train config options by running:
@@ -173,8 +174,8 @@ To switch to a different baseline, use the `+experiment` flag with one of the
 presets under `configs/experiments/`:
 
 ```bash
-pixi run snakemake --cores 1 --config experiments=baseline_parametric
-pixi run snakemake --cores 1 --config experiments=baseline_sundquist
+pixi run snakemake --cores 1 --config runs=baseline_parametric
+pixi run snakemake --cores 1 --config runs=baseline_sundquist
 ```
 
 ## Forecasting
@@ -183,7 +184,7 @@ The Snakemake workflow runs validation forecasts automatically after training.
 To generate test forecasts for a trained experiment, run:
 
 ```bash
-pixi run snakemake --cores 1 test_forecasts --config experiments=baseline_mlp
+pixi run snakemake --cores 1 test_forecasts --config runs=baseline_mlp
 ```
 
 Forecast files are saved under `data/forecasts/${exp_name}/`.
@@ -194,7 +195,7 @@ setting:
 
 ````
 ```bash
-pixi run snakemake --cores 1 test_forecasts --config experiments=baseline_mlp batch_size=8
+pixi run snakemake --cores 1 test_forecasts --config runs=baseline_mlp extra="batch_size=8"
 ```
 ````
 
@@ -204,7 +205,7 @@ Sundqvist baseline implementation, you can use:
 
 ````
 ```bash
-pixi run snakemake --cores 1 test_forecasts --config experiments=baseline_sundquist
+pixi run snakemake --cores 1 test_forecasts --config runs=baseline_sundquist
 ```
 ````
 
@@ -432,7 +433,7 @@ example, if you create a model config named `my_model.yaml`, you can train it
 with:
 
 ```bash
-pixi run snakemake --cores 1 --config runs=my_model_run overrides='model=my_model'
+pixi run snakemake --cores 1 --config runs=my_model_run extra="model=my_model"
 ```
 
 To obtain reproducible configurations, we recommend to additionally create a
@@ -441,7 +442,7 @@ new experiment config that references your model config and pass it with the
 `my_experiment.yaml` that references `my_model.yaml`, you can train it with:
 
 ```bash
-pixi run snakemake --cores 1 --config experiments=my_experiment
+pixi run snakemake --cores 1 --config runs=my_experiment
 ```
 
 In this case, you no longer need to pass the `model` flag, since it is
