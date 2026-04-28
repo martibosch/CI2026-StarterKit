@@ -15,12 +15,12 @@ import torch
 import torch.nn
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import CosineAnnealingLR 
 
 from tqdm.autonotebook import tqdm
 
 # Internal modules
 from starter_kit import lat_weights
-
 
 main_logger = logging.getLogger(__name__)
 
@@ -107,7 +107,9 @@ class BaseModel(abc.ABC):
         learning_rate: float = 1e-3,
         weight_decay: float = 1e-4,
         best_threshold: float = 0.99,
-        log_csv: bool = True
+        log_csv: bool = True,
+	LR_decrease_factor: float = 0.5,
+	LR_decrease_patience: int = 5
     ) -> None:
         r'''
         Initialize the base trainer.
@@ -154,6 +156,9 @@ class BaseModel(abc.ABC):
         )
         self.log_csv = log_csv
 
+        self.LR_decrease_factor = LR_decrease_factor
+    	self.LR_decrease_patience = LR_decrease_patience
+
         self.device = device
         self.n_epochs = n_epochs
         self.learning_rate = learning_rate
@@ -190,19 +195,21 @@ class BaseModel(abc.ABC):
 
     def _setup_optimizer(self) -> None:
         r'''
-        Instantiates AdamW optimizer and ReduceLROnPlateau scheduler for the
-        model parameters with the configured learning rate and weight decay.
+        Instantiates AdamW optimizer for the model parameters with the
+        configured learning rate and weight decay.
         '''
         self._optimizer = torch.optim.AdamW(
             self.network.parameters(),
             lr=self.learning_rate,
             weight_decay=self.weight_decay
         )
+
         self._scheduler = ReduceLROnPlateau(
-            self._optimizer,
-            mode="min",
-            patience=5,
-            factor=0.5,
+    	    self._optimizer,
+    	    mode="min",
+    	    factor=self.LR_decrease_factor
+    	    patience=self.LR_decrease_patience,
+    	    verbose=True
         )
 
     def _move_to_device(
@@ -363,7 +370,6 @@ class BaseModel(abc.ABC):
                 val_loss=val_loss,
             )
             self._check_save_checkpoint(val_loss)
-            self._scheduler.step(val_loss)
             self.log({
                 "epoch": idx_epoch,
                 "train/epoch_loss": train_loss,

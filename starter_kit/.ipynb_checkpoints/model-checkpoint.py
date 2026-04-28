@@ -190,19 +190,13 @@ class BaseModel(abc.ABC):
 
     def _setup_optimizer(self) -> None:
         r'''
-        Instantiates AdamW optimizer and ReduceLROnPlateau scheduler for the
-        model parameters with the configured learning rate and weight decay.
+        Instantiates AdamW optimizer for the model parameters with the
+        configured learning rate and weight decay.
         '''
         self._optimizer = torch.optim.AdamW(
             self.network.parameters(),
             lr=self.learning_rate,
             weight_decay=self.weight_decay
-        )
-        self._scheduler = ReduceLROnPlateau(
-            self._optimizer,
-            mode="min",
-            patience=5,
-            factor=0.5,
         )
 
     def _move_to_device(
@@ -363,7 +357,6 @@ class BaseModel(abc.ABC):
                 val_loss=val_loss,
             )
             self._check_save_checkpoint(val_loss)
-            self._scheduler.step(val_loss)
             self.log({
                 "epoch": idx_epoch,
                 "train/epoch_loss": train_loss,
