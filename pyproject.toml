@@ -89,6 +89,7 @@ line-length = 88
 docstring-code-format = true
 
 [tool.ruff.lint]
+ignore = ["D"]
 select = ["D", "E", "F", "I"]
 
 [tool.ruff.lint.isort]
