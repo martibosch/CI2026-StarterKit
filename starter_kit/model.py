@@ -107,7 +107,9 @@ class BaseModel(abc.ABC):
         learning_rate: float = 1e-3,
         weight_decay: float = 1e-4,
         best_threshold: float = 0.99,
-        log_csv: bool = True
+        log_csv: bool = True,
+        LR_patience: int = 5,
+        LR_factor: float = 0.2
     ) -> None:
         r'''
         Initialize the base trainer.
@@ -158,6 +160,9 @@ class BaseModel(abc.ABC):
         self.n_epochs = n_epochs
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
+        
+        self.LR_patience = LR_patience
+        self.LR_factor = LR_factor
 
         self.lat_weights = torch.as_tensor(
             lat_weights, device=self.device, dtype=torch.float32
@@ -198,11 +203,15 @@ class BaseModel(abc.ABC):
             lr=self.learning_rate,
             weight_decay=self.weight_decay
         )
+        print(f"[DEBUG] ReduceLROnPlateau config:")
+        print(f"        patience = {self.LR_patience}")
+        print(f"        factor   = {self.LR_factor}")
+
         self._scheduler = ReduceLROnPlateau(
             self._optimizer,
             mode="min",
-            patience=5,
-            factor=0.5,
+            patience=self.LR_patience,
+            factor=self.LR_factor,
         )
 
     def _move_to_device(
