@@ -84,11 +84,18 @@ def _experiment_args(run):
     return [f"+{EXPERIMENT_GROUP}={experiment}"]
 
 
-def _global_config_overrides():
+def _global_config_overrides(stage):
     overrides = [
         f"device={DEVICE}",
     ]
-    for key in ("n_epochs", "batch_size", "learning_rate", "seed"):
+    if stage == "train":
+        stage_keys = ("n_epochs", "batch_size", "learning_rate", "seed")
+    elif stage == "forecast":
+        stage_keys = ("batch_size",)
+    else:
+        stage_keys = ()
+
+    for key in stage_keys:
         if key in config:
             overrides.append(f"{key}={config[key]}")
     return overrides
@@ -99,7 +106,7 @@ def _hydra_args(run, stage, extra=None):
     overrides = []
     overrides.extend(_experiment_args(run))
     overrides.append(f"exp_name={run}")
-    overrides.extend(_global_config_overrides())
+    overrides.extend(_global_config_overrides(stage))
     overrides.extend(_as_list(COMMON_OVERRIDES))
     overrides.extend(_as_list(spec.get("overrides", [])))
 
