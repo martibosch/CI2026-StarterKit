@@ -24,7 +24,8 @@ wheels/
 *.egg
 .coverage
 
-# Conda
+# Environments
+.pixi/
 conda-env/
 env/
 venv/
@@ -41,6 +42,9 @@ data/forecasts/
 data/train_data/
 data/models/
 
+.snakemake/
+logs/
+scores/
 outputs/
 multirun/
 
