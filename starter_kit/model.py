@@ -1,39 +1,37 @@
 #!/bin/env python
-# -*- coding: utf-8 -*-
 #
 # Built for the CI 2026 hackathon starter kit
 
 
 # System modules
-import logging
-from typing import List, Dict, Tuple, Any
-import os.path
 import abc
+import logging
+import os.path
+from typing import Any, Dict, List, Tuple
 
 # External modules
 import torch
 import torch.nn
+import wandb
 from torch.utils.data import DataLoader
-
 from tqdm.autonotebook import tqdm
 
 # Internal modules
 from starter_kit import lat_weights
 
-
 main_logger = logging.getLogger(__name__)
 
 
-class CSVLogger(object):
-    r'''
+class CSVLogger:
+    r"""
     Simple CSV logger for training metrics.
 
     This logger buffers metric rows and writes them to a CSV file when
     flushed.
-    '''
+    """
 
     def __init__(self, csv_path: str) -> None:
-        r'''
+        r"""
         Initialize the CSV logger.
 
         Parameters
@@ -44,12 +42,12 @@ class CSVLogger(object):
         Notes
         -----
         Rows are buffered until flush() is called.
-        '''
+        """
         self.csv_path = csv_path
         self._rows_to_log: List[Dict] = []
 
     def log_row(self, row_dict: Dict) -> None:
-        r'''
+        r"""
         Buffer a row for later CSV writing.
         Parameters
         ----------
@@ -59,11 +57,11 @@ class CSVLogger(object):
         Notes
         -----
         The row is appended to the internal buffer.
-        '''
+        """
         self._rows_to_log.append(row_dict)
 
     def flush(self) -> None:
-        r'''
+        r"""
         Flush buffered rows to disk.
 
         Writes all buffered rows to the CSV file, appending if the file
@@ -72,10 +70,11 @@ class CSVLogger(object):
         Notes
         -----
         Uses pandas.DataFrame.to_csv() for serialization.
-        '''
+        """
         if not self._rows_to_log:
             return
         import pandas as pd
+
         df = pd.DataFrame(self._rows_to_log)
         if os.path.exists(self.csv_path):
             df.to_csv(self.csv_path, mode="a", header=False, index=False)
@@ -85,12 +84,12 @@ class CSVLogger(object):
 
 
 class BaseModel(abc.ABC):
-    r'''
+    r"""
     Base model for PyTorch models.
 
     Handles optimizer setup, training and validation loops, checkpointing,
     and CSV logging.
-    '''
+    """
 
     _best_loss = float("inf")
     _optimizer: torch.optim.Optimizer
@@ -106,9 +105,9 @@ class BaseModel(abc.ABC):
         learning_rate: float = 1e-3,
         weight_decay: float = 1e-4,
         best_threshold: float = 0.99,
-        log_csv: bool = True
+        log_csv: bool = True,
     ) -> None:
-        r'''
+        r"""
         Initialize the base trainer.
 
         Parameters
@@ -137,7 +136,7 @@ class BaseModel(abc.ABC):
         Notes
         -----
         Configures the optimizer, checkpoint path, and CSV logger.
-        '''
+        """
         self._rows_to_log: List[Dict] = []
 
         self.network = network
@@ -148,9 +147,7 @@ class BaseModel(abc.ABC):
         self.best_model_path = os.path.join(store_path, "best_model.ckpt")
         self.best_threshold = best_threshold
 
-        self.csv_logger = CSVLogger(
-            os.path.join(store_path, "train_log.csv")
-        )
+        self.csv_logger = CSVLogger(os.path.join(store_path, "train_log.csv"))
         self.log_csv = log_csv
 
         self.device = device
@@ -166,7 +163,7 @@ class BaseModel(abc.ABC):
 
     @torch.inference_mode()
     def __call__(self, **batch) -> torch.Tensor:
-        r'''
+        r"""
         Perform a forward pass in inference mode and clamp outputs into valid
         range [0, 1].
 
@@ -183,26 +180,25 @@ class BaseModel(abc.ABC):
         Notes
         -----
         Runs the model with torch.inference_mode() enabled.
-        '''
+        """
         prediction = self.network(**batch)
-        return prediction.clamp(0., 1.)
+        return prediction.clamp(0.0, 1.0)
 
     def _setup_optimizer(self) -> None:
-        r'''
+        r"""
         Instantiates AdamW optimizer for the model parameters with the
         configured learning rate and weight decay.
-        '''
+        """
         self._optimizer = torch.optim.AdamW(
             self.network.parameters(),
             lr=self.learning_rate,
-            weight_decay=self.weight_decay
+            weight_decay=self.weight_decay,
         )
 
     def _move_to_device(
-            self,
-            batch: Dict[str, torch.Tensor]
+        self, batch: Dict[str, torch.Tensor]
     ) -> Dict[str, torch.Tensor]:
-        r'''
+        r"""
         Move a batch of tensors to the configured device.
 
         Parameters
@@ -214,11 +210,11 @@ class BaseModel(abc.ABC):
         -------
         Dict[str, torch.Tensor]
             Batch with tensors moved to the device.
-        '''
+        """
         return {k: v.to(self.device) for k, v in batch.items()}
 
     def _check_save_checkpoint(self, val_loss: float) -> None:
-        r'''
+        r"""
         Save a checkpoint when validation improves.
 
         Parameters
@@ -230,7 +226,7 @@ class BaseModel(abc.ABC):
         -----
         Saves the model when val_loss is lower than the previous best
         scaled by best_threshold.
-        '''
+        """
         if val_loss < self._best_loss * self.best_threshold:
             main_logger.debug(
                 f"New best validation loss: {val_loss:.4f} "
@@ -240,16 +236,16 @@ class BaseModel(abc.ABC):
             torch.save(self.network.state_dict(), self.best_model_path)
 
     def _load_best_checkpoint(self) -> None:
-        r'''
+        r"""
         Load the best checkpoint from disk, placing onto the configured device.
-        '''
+        """
         main_logger.debug(f"Loading checkpoint from {self.best_model_path}.")
         self.network.load_state_dict(
             torch.load(self.best_model_path, map_location=self.device)
         )
 
     def _train_epoch(self) -> float:
-        r'''
+        r"""
         Execute one training epoch: iterate over training batches, perform
         updates, and log batch losses.
 
@@ -257,7 +253,7 @@ class BaseModel(abc.ABC):
         -------
         float
             Training loss averaged over the full epoch.
-        '''
+        """
         _n_samples: int = 0
         _acc_loss: float = 0.0
         self.network.train()
@@ -279,7 +275,7 @@ class BaseModel(abc.ABC):
         return _acc_loss / _n_samples
 
     def _val_epoch(self) -> Tuple[float, Dict[str, float]]:
-        r'''
+        r"""
         Execute one validation epoch, aggregating the validation loss and
         auxiliary metrics over the validation set.
 
@@ -289,7 +285,7 @@ class BaseModel(abc.ABC):
             Validation loss averaged over the full validation set.
         Dict[str, float]
             Auxiliary metrics averaged over the full validation set.
-        '''
+        """
         _n_samples: int = 0
         _losses_list: List[Dict[str, float]] = []
         self.network.eval()
@@ -303,24 +299,22 @@ class BaseModel(abc.ABC):
 
             curr_samples = batch["input_level"].shape[0]
             _n_samples += batch["input_level"].shape[0]
-            curr_loss_dict = {
-                k: v.item() * curr_samples
-                for k, v in loss_aux.items()
-            }
+            curr_loss_dict = {k: v.item() * curr_samples for k, v in loss_aux.items()}
             curr_loss = output_dict["loss"].item()
             curr_loss_dict["loss"] = curr_loss * curr_samples
             _losses_list.append(curr_loss_dict)
             val_pbar.set_postfix(loss=curr_loss)
 
-        val_loss = sum(l["loss"] for l in _losses_list) / _n_samples
+        val_loss = sum(_loss["loss"] for _loss in _losses_list) / _n_samples
         aux_losses = {
-            k: sum(l[k] for l in _losses_list) / _n_samples
-            for k in _losses_list[0] if k != "loss"
+            k: sum(_loss[k] for _loss in _losses_list) / _n_samples
+            for k in _losses_list[0]
+            if k != "loss"
         }
         return val_loss, aux_losses
 
     def log(self, log_dict: Dict, flush: bool = False) -> None:
-        r'''
+        r"""
         Log metrics and optionally flush them to disk.
 
         Parameters
@@ -329,14 +323,16 @@ class BaseModel(abc.ABC):
             Metric values to record.
         flush : bool, optional
             Whether to flush the CSV logger immediately, by default False.
-        '''
+        """
         if self.log_csv:
             self.csv_logger.log_row(log_dict)
             if flush:
                 self.csv_logger.flush()
+        if wandb.run is not None:
+            wandb.log(log_dict)
 
     def train(self) -> torch.nn.Module:
-        r'''
+        r"""
         Train the model for the configured number of epochs.
 
         Performs training and validation, log metrics, and checkpoint the best
@@ -346,8 +342,8 @@ class BaseModel(abc.ABC):
         -------
         torch.nn.Module
             The model loaded with the best checkpoint weights.
-        '''
-        epoch_pbar = tqdm(range(1, self.n_epochs+1), desc="Epochs")
+        """
+        epoch_pbar = tqdm(range(1, self.n_epochs + 1), desc="Epochs")
         for idx_epoch in epoch_pbar:
             train_loss = self._train_epoch()
             val_loss, aux_losses = self._val_epoch()
@@ -356,12 +352,15 @@ class BaseModel(abc.ABC):
                 val_loss=val_loss,
             )
             self._check_save_checkpoint(val_loss)
-            self.log({
-                "epoch": idx_epoch,
-                "train/epoch_loss": train_loss,
-                "val/epoch_loss": val_loss,
-                **{f"val/{k}": v for k, v in aux_losses.items()}
-            }, flush=True)
+            self.log(
+                {
+                    "epoch": idx_epoch,
+                    "train/epoch_loss": train_loss,
+                    "val/epoch_loss": val_loss,
+                    **{f"val/{k}": v for k, v in aux_losses.items()},
+                },
+                flush=True,
+            )
         if os.path.exists(self.best_model_path):
             self._load_best_checkpoint()
         else:
@@ -372,7 +371,7 @@ class BaseModel(abc.ABC):
         return self.network
 
     def validate(self) -> Tuple[float, Dict[str, float]]:
-        r'''
+        r"""
         Validate the model without updating parameters.
 
         Permorms a validation epoch and returns the averaged validation loss
@@ -382,15 +381,12 @@ class BaseModel(abc.ABC):
         -------
         Tuple[float, Dict[str, float]]
             Validation loss and auxiliary losses averaged per sample.
-        '''
+        """
         return self._val_epoch()
 
     @abc.abstractmethod
-    def estimate_loss(
-            self,
-            batch: Dict[str, torch.Tensor]
-    ) -> Dict[str, Any]:
-        r'''
+    def estimate_loss(self, batch: Dict[str, torch.Tensor]) -> Dict[str, Any]:
+        r"""
         Estimate loss values for a batch.
 
         Parameters
@@ -411,17 +407,15 @@ class BaseModel(abc.ABC):
         Notes
         -----
         Must be implemented by subclasses.
-        '''
+        """
         raise NotImplementedError(
             "estimate_loss method must be implemented in subclass."
         )
 
     def estimate_auxiliary_loss(
-            self,
-            batch: Dict[str, torch.Tensor],
-            outputs: Dict[str, Any]
+        self, batch: Dict[str, torch.Tensor], outputs: Dict[str, Any]
     ) -> Dict[str, Any]:
-        r'''
+        r"""
         Compute auxiliary loss terms from model outputs.
 
         Parameters
@@ -439,5 +433,5 @@ class BaseModel(abc.ABC):
         Notes
         -----
         Default implementation returns an empty dictionary.
-        '''
+        """
         return {}

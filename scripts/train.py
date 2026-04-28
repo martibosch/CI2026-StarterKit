@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 #
 # Built for the CI 2026 hackathon starter kit
 
-r'''
+r"""
 Training script for weather/climate baseline models.
 
 Uses Hydra for configuration. Run with::
@@ -13,35 +12,31 @@ Uses Hydra for configuration. Run with::
 Override config values on the command line::
 
     python scripts/train.py model.n_epochs=20 device=cuda
-'''
+"""
 
 # System modules
 import logging
 import os
 from typing import Tuple
 
-from sympy import per
+import hydra
 
 # External modules
 import torch
 import torch.nn
+import wandb
+from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
-import hydra
-from omegaconf import DictConfig
 
 # Internal modules
 from starter_kit.data import TrainDataset
 from starter_kit.layers import InputNormalisation
 
-
 main_logger = logging.getLogger(__name__)
 
 
-def _load_normalisation(
-        path: str,
-        device: torch.device
-) -> InputNormalisation:
-    r'''
+def _load_normalisation(path: str, device: torch.device) -> InputNormalisation:
+    r"""
     Load an InputNormalisation layer from a checkpoint file.
 
     Parameters
@@ -55,19 +50,13 @@ def _load_normalisation(
     -------
     InputNormalisation
         Normalisation layer with buffers on ``device``.
-    '''
+    """
     state = torch.load(path, map_location=device)
-    return InputNormalisation(
-        mean=state["mean"],
-        std=state["std"]
-    )
+    return InputNormalisation(mean=state["mean"], std=state["std"])
 
 
-def _build_network(
-        cfg: DictConfig,
-        device: torch.device
-) -> torch.nn.Module:
-    r'''
+def _build_network(cfg: DictConfig, device: torch.device) -> torch.nn.Module:
+    r"""
     Instantiate the network from Hydra config.
 
     Parameters
@@ -81,15 +70,13 @@ def _build_network(
     -------
     torch.nn.Module
         Instantiated network on ``device``.
-    '''
+    """
     network = hydra.utils.instantiate(cfg)
     return network.to(device)
 
 
-def _build_loaders(
-        cfg: DictConfig
-) -> Tuple[DataLoader, DataLoader]:
-    r'''
+def _build_loaders(cfg: DictConfig) -> Tuple[DataLoader, DataLoader]:
+    r"""
     Build training and validation data loaders.
 
     Parameters
@@ -101,7 +88,7 @@ def _build_loaders(
     -------
     Tuple[DataLoader, DataLoader]
         Training loader and validation loader.
-    '''
+    """
     train_ds = TrainDataset(
         cfg.train_path,
         threads_limit=cfg.threads_limit,
@@ -114,30 +101,36 @@ def _build_loaders(
         batch_size=cfg.batch_size,
         num_workers=cfg.num_workers,
         pin_memory=cfg.pin_memory if torch.cuda.is_available() else False,
-        persistent_workers=cfg.persistent_workers
+        persistent_workers=cfg.persistent_workers,
     )
     train_loader = DataLoader(train_ds, shuffle=True, **loader_kwargs)
     val_loader = DataLoader(val_ds, shuffle=False, **loader_kwargs)
     return train_loader, val_loader
 
 
-@hydra.main(
-    config_path="../configs",
-    config_name="train",
-    version_base="1.3"
-)
+@hydra.main(config_path="../configs", config_name="train", version_base="1.3")
 def main(cfg: DictConfig) -> None:
-    r'''
+    r"""
     Entry point: parse config, build model, and run training.
 
     Parameters
     ----------
     cfg : DictConfig
         Full Hydra configuration tree.
-    '''
+    """
     torch.manual_seed(cfg.seed)
     device = torch.device(cfg.device)
     os.makedirs(cfg.store_path, exist_ok=True)
+
+    wandb_cfg = cfg.get("wandb", {}) or {}
+    if wandb_cfg.get("enabled", False):
+        wandb.init(
+            project=wandb_cfg.get("project"),
+            entity=wandb_cfg.get("entity"),
+            name=cfg.exp_name,
+            config=OmegaConf.to_container(cfg, resolve=True),
+            mode=wandb_cfg.get("mode", "online"),
+        )
 
     network = _build_network(cfg.network, device)
     train_loader, val_loader = _build_loaders(cfg.data)
@@ -151,11 +144,16 @@ def main(cfg: DictConfig) -> None:
         device=device,
     )
 
-    model.train()
-    main_logger.info(
-        "Training complete. Best model saved to %s",
-        cfg.store_path
-    )
+    try:
+        model.train()
+        main_logger.info("Training complete. Best model saved to %s", cfg.store_path)
+        if wandb.run is not None and os.path.exists(model.best_model_path):
+            artifact = wandb.Artifact(name=cfg.exp_name, type="model")
+            artifact.add_file(model.best_model_path)
+            wandb.log_artifact(artifact)
+    finally:
+        if wandb.run is not None:
+            wandb.finish()
 
 
 if __name__ == "__main__":
