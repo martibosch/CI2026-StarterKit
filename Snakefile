@@ -1,6 +1,5 @@
 import shlex
 
-
 REGIONS = [
     "era5_region1",
     "era5_region2",
@@ -59,10 +58,7 @@ def _coerce_runs(value):
             else:
                 runs[str(name)] = dict(spec)
         return runs
-    return {
-        name: {"experiment": name, "overrides": []}
-        for name in _as_names(value)
-    }
+    return {name: {"experiment": name, "overrides": []} for name in _as_names(value)}
 
 
 RUNS = (
@@ -121,19 +117,19 @@ def _hydra_args(run, stage, extra=None):
 wildcard_constraints:
     run="[^/]+",
     split="val|test",
-    region="era5_region1|era5_region2|aimip_region1|aimip_region2"
+    region="era5_region1|era5_region2|aimip_region1|aimip_region2",
 
 
 rule all:
     input:
-        expand("{scores_dir}/{run}.json", scores_dir=SCORES_DIR, run=RUN_NAMES)
+        expand("{scores_dir}/{run}.json", scores_dir=SCORES_DIR, run=RUN_NAMES),
 
 
 rule download_data:
     output:
-        marker=DATA_READY
+        marker=DATA_READY,
     log:
-        f"{LOG_DIR}/download_data.log"
+        f"{LOG_DIR}/download_data.log",
     shell:
         """
         hf download tobifinn/CI2026Hackathon \
@@ -149,7 +145,7 @@ rule download_data:
 
 rule val_scores:
     input:
-        expand("{scores_dir}/{run}.json", scores_dir=SCORES_DIR, run=RUN_NAMES)
+        expand("{scores_dir}/{run}.json", scores_dir=SCORES_DIR, run=RUN_NAMES),
 
 
 rule test_forecasts:
@@ -158,31 +154,31 @@ rule test_forecasts:
             "data/forecasts/{run}/test_{region}.nc",
             run=RUN_NAMES,
             region=REGIONS,
-        )
+        ),
 
 
 rule train:
     input:
-        data=DATA_READY
+        data=DATA_READY,
     output:
-        ckpt="data/models/{run}/best_model.ckpt"
+        ckpt="data/models/{run}/best_model.ckpt",
     log:
-        f"{LOG_DIR}/{{run}}/train.log"
+        f"{LOG_DIR}/{{run}}/train.log",
     params:
         hydra_args=lambda wildcards: _hydra_args(wildcards.run, "train"),
     shell:
         """
-        python scripts/train.py {params.hydra_args} > {log} 2>&1
+        python scripts/train.py {params.hydra_args} 2>&1 | tee {log}
         """
 
 
 rule forecast:
     input:
-        ckpt="data/models/{run}/best_model.ckpt"
+        ckpt="data/models/{run}/best_model.ckpt",
     output:
-        forecast="data/forecasts/{run}/{split}_{region}.nc"
+        forecast="data/forecasts/{run}/{split}_{region}.nc",
     log:
-        f"{LOG_DIR}/{{run}}/forecast_{{split}}_{{region}}.log"
+        f"{LOG_DIR}/{{run}}/forecast_{{split}}_{{region}}.log",
     params:
         hydra_args=lambda wildcards, input, output: _hydra_args(
             wildcards.run,
@@ -195,17 +191,17 @@ rule forecast:
         ),
     shell:
         """
-        python scripts/forecast.py {params.hydra_args} > {log} 2>&1
+        python scripts/forecast.py {params.hydra_args} 2>&1 | tee {log}
         """
 
 
 rule evaluate:
     input:
-        expand("data/forecasts/{{run}}/val_{region}.nc", region=REGIONS)
+        expand("data/forecasts/{{run}}/val_{region}.nc", region=REGIONS),
     output:
-        score=f"{SCORES_DIR}/{{run}}.json"
+        score=f"{SCORES_DIR}/{{run}}.json",
     log:
-        f"{LOG_DIR}/{{run}}/evaluate.log"
+        f"{LOG_DIR}/{{run}}/evaluate.log",
     params:
         prediction_dir=lambda wildcards: f"data/forecasts/{wildcards.run}",
         team_name=lambda wildcards: TEAM_NAME,
@@ -216,5 +212,5 @@ rule evaluate:
             --prefix val \
             --to_json \
             --team_name {params.team_name} \
-            --output_path {output.score} > {log} 2>&1
+            --output_path {output.score} 2>&1 | tee {log}
         """
