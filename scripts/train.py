@@ -103,6 +103,8 @@ def _build_loaders(cfg: DictConfig) -> Tuple[DataLoader, DataLoader]:
         pin_memory=cfg.pin_memory if torch.cuda.is_available() else False,
         persistent_workers=cfg.persistent_workers,
     )
+    if cfg.num_workers > 0 and cfg.get("prefetch_factor"):
+        loader_kwargs["prefetch_factor"] = cfg.prefetch_factor
     train_loader = DataLoader(train_ds, shuffle=True, **loader_kwargs)
     val_loader = DataLoader(val_ds, shuffle=False, **loader_kwargs)
     return train_loader, val_loader
