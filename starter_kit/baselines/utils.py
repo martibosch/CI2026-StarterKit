@@ -127,3 +127,103 @@ def approximate_surface_pressure(
     return reference_pressure * torch.exp(
         -geopotential_at_surface / (_RD * reference_temperature)
     )
+
+def estimate_wind_direction_sin(
+        ua: torch.Tensor,
+        va: torch.Tensor
+) -> torch.Tensor:
+    r'''
+    Estimate sine of wind direction from wind components.
+
+    The sine of wind direction is defined as:
+
+    .. math:: \sin(\theta) = \frac{v}{\sqrt{u^2 + v^2}}
+
+    where :math:`u` is the zonal wind and :math:`v` is the meridional wind.
+
+    Parameters
+    ----------
+    ua : torch.Tensor
+        Zonal wind component (m/s).
+    va : torch.Tensor
+        Meridional wind component (m/s).
+
+    Returns
+    -------
+    torch.Tensor
+        Sine of wind direction (unitless, bounded in [-1, 1]).
+    '''
+
+    wind_speed = torch.sqrt(
+        ua ** 2 + va ** 2 + 1e-12
+    )
+
+    sin_theta = va / (wind_speed + 1e-12)
+
+    return sin_theta.clamp(-1.0, 1.0)
+
+def estimate_wind_direction_cos(
+        ua: torch.Tensor,
+        va: torch.Tensor
+) -> torch.Tensor:
+    r'''
+    Estimate cosine of wind direction from wind components.
+
+    The cosine of wind direction is defined as:
+
+    .. math:: \cos(\theta) = \frac{u}{\sqrt{u^2 + v^2}}
+
+    where :math:`u` is the zonal wind and :math:`v` is the meridional wind.
+
+    Parameters
+    ----------
+    ua : torch.Tensor
+        Zonal wind component (m/s).
+    va : torch.Tensor
+        Meridional wind component (m/s).
+
+    Returns
+    -------
+    torch.Tensor
+        Cosine of wind direction (unitless, bounded in [-1, 1]).
+    '''
+
+    wind_speed = torch.sqrt(
+        ua ** 2 + va ** 2 + 1e-12
+    )
+
+    cos_theta = ua / (wind_speed + 1e-12)
+
+    return cos_theta.clamp(-1.0, 1.0)
+
+def estimate_wind_speed(
+        ua: torch.Tensor,
+        va: torch.Tensor
+) -> torch.Tensor:
+    r'''
+    Estimate wind speed from wind components.
+
+    Wind speed is defined as:
+
+    .. math:: |\vec{v}| = \sqrt{u^2 + v^2}
+
+    where :math:`u` is the zonal wind and :math:`v` is the meridional wind.
+
+    Parameters
+    ----------
+    ua : torch.Tensor
+        Zonal wind component (m/s).
+    va : torch.Tensor
+        Meridional wind component (m/s).
+
+    Returns
+    -------
+    torch.Tensor
+        Wind speed (m/s), always non-negative.
+    '''
+
+    wind_speed = torch.sqrt(
+        ua ** 2 + va ** 2 + 1e-12
+    )
+
+    return wind_speed
