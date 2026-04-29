@@ -11,8 +11,8 @@ seed: 42
 n_epochs: 10
 batch_size: 64
 learning_rate: 0.001
-LR_patience: 7
-LR_factor: 0.25
+lr_patience: 7
+lr_factor: 0.25
 
 wandb:
   enabled: false
