@@ -110,11 +110,6 @@ class UNetwork(nn.Module):
                 stats = json.load(f)
             mean_list = stats["mean"]
             std_list = stats["std"]
-            if len(mean_list) != input_dim:
-                raise ValueError(
-                    f"normalisation_path has {len(mean_list)} channels but "
-                    f"input_dim={input_dim}"
-                )
             if use_rh:
                 if not stats.get("use_rh", False):
                     raise ValueError(
@@ -147,6 +142,11 @@ class UNetwork(nn.Module):
             pre_aux = len(mean_list) - n_aux
             mean_list = mean_list[:pre_aux] + [0.0] * 21 + mean_list[pre_aux:]
             std_list = std_list[:pre_aux] + [1.0] * 21 + std_list[pre_aux:]
+
+        if len(mean_list) != input_dim:
+            raise ValueError(
+                f"final stats length is {len(mean_list)} but input_dim={input_dim}"
+            )
 
         mean = torch.tensor(mean_list).reshape(1, -1, 1, 1)
         std = torch.tensor(std_list).reshape(1, -1, 1, 1)
