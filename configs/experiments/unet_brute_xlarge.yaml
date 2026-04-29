@@ -1,0 +1,18 @@
+# @package _global_
+
+defaults:
+  - override /model: unet
+
+exp_name: unet_brute_xlarge
+learning_rate: 0.0008
+batch_size: 16
+mixed_precision: true
+n_epochs: 60
+
+network:
+  use_rh: true
+  input_dim: 37
+  base_channels: 96
+  depth: 3
+  n_auxiliary_fields: 2
+  normalisation_path: data/stats/normalization_rh_aux2.json
