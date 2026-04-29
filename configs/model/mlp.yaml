@@ -9,6 +9,7 @@ model:
   log_csv: true
   lr_patience: ${lr_patience}
   lr_factor: ${lr_factor}
+  early_stop_patience: ${early_stop_patience}
 
 network:
   _target_: starter_kit.baselines.mlp.MLPNetwork

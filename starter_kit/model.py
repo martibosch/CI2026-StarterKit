@@ -7,7 +7,7 @@
 import abc
 import logging
 import os.path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # External modules
 import torch
@@ -109,6 +109,7 @@ class BaseModel(abc.ABC):
         log_csv: bool = True,
         lr_patience: int = 5,
         lr_factor: float = 0.2,
+        early_stop_patience: Optional[int] = None,
     ) -> None:
         r"""
         Initialize the base trainer.
@@ -160,6 +161,8 @@ class BaseModel(abc.ABC):
 
         self.lr_patience = lr_patience
         self.lr_factor = lr_factor
+        self.early_stop_patience = early_stop_patience
+        self._epochs_since_best = 0
 
         self.lat_weights = torch.as_tensor(
             lat_weights, device=self.device, dtype=torch.float32
@@ -225,7 +228,7 @@ class BaseModel(abc.ABC):
         """
         return {k: v.to(self.device) for k, v in batch.items()}
 
-    def _check_save_checkpoint(self, val_loss: float) -> None:
+    def _check_save_checkpoint(self, val_loss: float) -> bool:
         r"""
         Save a checkpoint when validation improves.
 
@@ -233,6 +236,12 @@ class BaseModel(abc.ABC):
         ----------
         val_loss : float
             Current validation loss.
+
+        Returns
+        -------
+        bool
+            True if val_loss improved (and a checkpoint was saved), False
+            otherwise. The caller uses this to drive the early-stop counter.
 
         Notes
         -----
@@ -246,6 +255,8 @@ class BaseModel(abc.ABC):
             )
             self._best_loss = val_loss
             torch.save(self.network.state_dict(), self.best_model_path)
+            return True
+        return False
 
     def _load_best_checkpoint(self) -> None:
         r"""
@@ -363,8 +374,12 @@ class BaseModel(abc.ABC):
                 train_loss=train_loss,
                 val_loss=val_loss,
             )
-            self._check_save_checkpoint(val_loss)
+            improved = self._check_save_checkpoint(val_loss)
             self._scheduler.step(val_loss)
+            if improved:
+                self._epochs_since_best = 0
+            else:
+                self._epochs_since_best += 1
             self.log(
                 {
                     "epoch": idx_epoch,
@@ -375,6 +390,18 @@ class BaseModel(abc.ABC):
                 },
                 flush=True,
             )
+            if (
+                self.early_stop_patience is not None
+                and self._epochs_since_best >= self.early_stop_patience
+            ):
+                main_logger.info(
+                    "Early stop at epoch %d: val/epoch_loss has not improved "
+                    "for %d consecutive epochs (patience=%d).",
+                    idx_epoch,
+                    self._epochs_since_best,
+                    self.early_stop_patience,
+                )
+                break
         if os.path.exists(self.best_model_path):
             self._load_best_checkpoint()
         else:
