@@ -124,10 +124,12 @@ def main(cfg: DictConfig) -> None:
 
     wandb_cfg = cfg.get("wandb", {}) or {}
     if wandb_cfg.get("enabled", False):
+        model_target = cfg.model._target_.split(".")[-1]
         wandb.init(
             project=wandb_cfg.get("project"),
             entity=wandb_cfg.get("entity"),
             name=cfg.exp_name,
+            tags=[model_target],
             config=OmegaConf.to_container(cfg, resolve=True),
             mode=wandb_cfg.get("mode", "online"),
         )

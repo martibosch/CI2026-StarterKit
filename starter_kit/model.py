@@ -200,10 +200,6 @@ class BaseModel(abc.ABC):
             lr=self.learning_rate,
             weight_decay=self.weight_decay,
         )
-        print("[DEBUG] ReduceLROnPlateau config:")
-        print(f"        patience = {self.lr_patience}")
-        print(f"        factor   = {self.lr_factor}")
-
         self._scheduler = ReduceLROnPlateau(
             self._optimizer,
             mode="min",
