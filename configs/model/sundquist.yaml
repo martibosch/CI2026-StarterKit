@@ -10,6 +10,7 @@ model:
   lr_patience: ${lr_patience}
   lr_factor: ${lr_factor}
   early_stop_patience: ${early_stop_patience}
+  mixed_precision: ${mixed_precision}
 
 network:
   _target_: starter_kit.baselines.sundquist.SundquistNetwork

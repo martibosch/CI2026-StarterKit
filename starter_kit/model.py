@@ -110,6 +110,7 @@ class BaseModel(abc.ABC):
         lr_patience: int = 5,
         lr_factor: float = 0.2,
         early_stop_patience: Optional[int] = None,
+        mixed_precision: bool = False,
     ) -> None:
         r"""
         Initialize the base trainer.
@@ -163,6 +164,11 @@ class BaseModel(abc.ABC):
         self.lr_factor = lr_factor
         self.early_stop_patience = early_stop_patience
         self._epochs_since_best = 0
+
+        # Mixed-precision is only meaningful on CUDA; silently no-op elsewhere
+        # so the same config can run on CPU smoke tests.
+        self.mixed_precision = mixed_precision and self.device.type == "cuda"
+        self._scaler = torch.amp.GradScaler("cuda") if self.mixed_precision else None
 
         self.lat_weights = torch.as_tensor(
             lat_weights, device=self.device, dtype=torch.float32
@@ -285,9 +291,16 @@ class BaseModel(abc.ABC):
             batch = self._move_to_device(batch)
 
             self._optimizer.zero_grad()
-            output_dict = self.estimate_loss(batch)
-            output_dict["loss"].backward()
-            self._optimizer.step()
+            if self.mixed_precision:
+                with torch.amp.autocast("cuda", dtype=torch.float16):
+                    output_dict = self.estimate_loss(batch)
+                self._scaler.scale(output_dict["loss"]).backward()
+                self._scaler.step(self._optimizer)
+                self._scaler.update()
+            else:
+                output_dict = self.estimate_loss(batch)
+                output_dict["loss"].backward()
+                self._optimizer.step()
 
             curr_loss = output_dict["loss"].item()
             train_pbar.set_postfix(loss=curr_loss)
@@ -316,7 +329,12 @@ class BaseModel(abc.ABC):
         for batch in val_pbar:
             batch = self._move_to_device(batch)
 
-            with torch.no_grad():
+            with (
+                torch.no_grad(),
+                torch.amp.autocast(
+                    "cuda", dtype=torch.float16, enabled=self.mixed_precision
+                ),
+            ):
                 output_dict = self.estimate_loss(batch)
             loss_aux = self.estimate_auxiliary_loss(batch, output_dict)
 

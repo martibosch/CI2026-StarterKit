@@ -14,6 +14,7 @@ learning_rate: 0.001
 lr_patience: 7
 lr_factor: 0.25
 early_stop_patience: null
+mixed_precision: false
 
 wandb:
   enabled: false
