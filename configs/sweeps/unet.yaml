@@ -1,0 +1,37 @@
+program: scripts/train.py
+project: ci2026
+entity: ci2026-giub
+method: bayes
+metric:
+  name: val/epoch_loss
+  goal: minimize
+command:
+  - ${env}
+  - python
+  - ${program}
+  - "+experiments=unet_hpo"
+  - "+suite=wandb_grid"
+  - ${args_no_hyphens}
+parameters:
+  learning_rate:
+    distribution: log_uniform_values
+    min: 1e-4
+    max: 5e-3
+  model.weight_decay:
+    distribution: log_uniform_values
+    min: 1e-7
+    max: 1e-3
+  network.base_channels:
+    values: [16, 32, 64]
+  network.depth:
+    values: [2, 3, 4, 5]
+  lr_patience:
+    values: [3, 5, 7]
+  lr_factor:
+    values: [0.1, 0.2, 0.5]
+  batch_size:
+    values: [32, 64, 128]
+early_terminate:
+  type: hyperband
+  min_iter: 5
+  eta: 3
