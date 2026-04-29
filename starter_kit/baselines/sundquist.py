@@ -1,5 +1,4 @@
 #!/bin/env python
-# -*- coding: utf-8 -*-
 #
 # Built for the CI 2026 hackathon starter kit
 
@@ -10,14 +9,13 @@ import logging
 import torch
 
 # Internal modules
-from .utils import estimate_relative_humidity, approximate_surface_pressure
-
+from .utils import approximate_surface_pressure, estimate_relative_humidity
 
 main_logger = logging.getLogger(__name__)
 
 
 class SundquistNetwork(torch.nn.Module):
-    r'''
+    r"""
     Sundqvist cloud cover parametrisation.
 
     Computes per-level cloud cover as:
@@ -43,36 +41,32 @@ class SundquistNetwork(torch.nn.Module):
         Sigmoid maps to (0, 1); initialised near 1.
     pressure_levels : torch.Tensor
         Fixed pressure levels in Pa, shape (7, 1, 1).
-    '''
+    """
 
     _EPSILON = 1e-6
 
     def __init__(self) -> None:
         super().__init__()
         # r_0(p): critical RH per level; sigmoid(0) = 0.5 start
-        self.register_parameter(
-            "logit_r0",
-            torch.nn.Parameter(torch.zeros(7, 1, 1))
-        )
+        self.register_parameter("logit_r0", torch.nn.Parameter(torch.zeros(7, 1, 1)))
         # r_sat: saturation RH; sigmoid(4) ≈ 0.98 start
         self.register_parameter(
-            "logit_r_sat",
-            torch.nn.Parameter(torch.full((1,), 4.0))
+            "logit_r_sat", torch.nn.Parameter(torch.full((1,), 4.0))
         )
         self.register_buffer(
             "pressure_levels",
             torch.tensor(
                 [1000_00, 850_00, 700_00, 500_00, 250_00, 100_00, 50_00],
                 dtype=torch.float32,
-            ).reshape(-1, 1, 1)
+            ).reshape(-1, 1, 1),
         )
 
     def forward(
-            self,
-            input_level: torch.Tensor,
-            input_auxiliary: torch.Tensor,
+        self,
+        input_level: torch.Tensor,
+        input_auxiliary: torch.Tensor,
     ) -> torch.Tensor:
-        r'''
+        r"""
         Compute total cloud cover from level inputs.
 
         Parameters
@@ -89,8 +83,8 @@ class SundquistNetwork(torch.nn.Module):
         -------
         torch.Tensor
             Total cloud cover in [0, 1], shape (B, 1, H, W).
-        '''
-        r0 = torch.sigmoid(self.logit_r0)        # (7, 1, 1)
+        """
+        r0 = torch.sigmoid(self.logit_r0)  # (7, 1, 1)
         r_sat = torch.sigmoid(self.logit_r_sat)  # (1,)
 
         level_rh = estimate_relative_humidity(
@@ -103,13 +97,9 @@ class SundquistNetwork(torch.nn.Module):
         ratio = ((level_rh - r0) / gap).clamp(0.0, 1.0)
         # Clamp away from 0 before sqrt: gradient is 1/(2*sqrt(x)),
         # which diverges at x=0 and produces NaN in backprop.
-        level_cloud_cover = 1 - torch.sqrt(
-            (1 - ratio).clamp(min=self._EPSILON)
-        )
+        level_cloud_cover = 1 - torch.sqrt((1 - ratio).clamp(min=self._EPSILON))
 
-        surface_pressure = approximate_surface_pressure(
-            input_auxiliary[:, 1:2]
-        )
+        surface_pressure = approximate_surface_pressure(input_auxiliary[:, 1:2])
         valid_mask = self.pressure_levels < surface_pressure.unsqueeze(2)
 
         level_clear_sky = 1 - level_cloud_cover * valid_mask

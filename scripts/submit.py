@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 #
 # Built for the CI 2026 hackathon starter kit
 
-r'''
+r"""
 Run forecasts for a test suite and submit them to the portal.
 
 Inherits all forecast options from forecast.yaml, runs the forward
@@ -26,7 +25,7 @@ Skip forecasting if the netCDF files already exist::
     python scripts/submit.py \
         skip_forecast=true \
         email=you@example.com
-'''
+"""
 
 # System modules
 import logging
@@ -37,11 +36,10 @@ from typing import Dict
 # External modules
 import hydra
 import requests
-from omegaconf import DictConfig, OmegaConf
 
 # Internal modules
 from forecast import run_forecast
-
+from omegaconf import DictConfig, OmegaConf
 
 main_logger = logging.getLogger(__name__)
 
@@ -61,7 +59,7 @@ _PORTAL_FIELDS = {
 
 
 def _run_all_forecasts(cfg: DictConfig) -> None:
-    r'''
+    r"""
     Run forecasts for all four regions using the given test suite.
 
     For each region the base config is merged with the region-specific
@@ -71,18 +69,16 @@ def _run_all_forecasts(cfg: DictConfig) -> None:
     ----------
     cfg : DictConfig
         Full submit configuration tree.
-    '''
+    """
     for region in _REGIONS:
         region_paths = cfg.regions[region]
         region_cfg = OmegaConf.merge(cfg, region_paths)
-        main_logger.info(
-            "Forecasting %s …", region
-        )
+        main_logger.info("Forecasting %s …", region)
         run_forecast(region_cfg)
 
 
 def _collect_forecast_files(cfg: DictConfig) -> Dict[str, Path]:
-    r'''
+    r"""
     Locate the four forecast netCDF files defined in the config.
 
     Parameters
@@ -99,7 +95,7 @@ def _collect_forecast_files(cfg: DictConfig) -> Dict[str, Path]:
     ------
     FileNotFoundError
         If any of the four expected output files is missing.
-    '''
+    """
     files: Dict[str, Path] = {}
     missing = []
     for region in _REGIONS:
@@ -111,8 +107,7 @@ def _collect_forecast_files(cfg: DictConfig) -> Dict[str, Path]:
             files[region] = path
     if missing:
         raise FileNotFoundError(
-            "Missing forecast files:\n"
-            + "\n".join(f"  {p}" for p in missing)
+            "Missing forecast files:\n" + "\n".join(f"  {p}" for p in missing)
         )
     return files
 
@@ -122,7 +117,7 @@ def _submit_to_portal(
     portal_url: str,
     forecast_files: Dict[str, Path],
 ) -> None:
-    r'''
+    r"""
     POST the four forecast files to the submission portal.
 
     Parameters
@@ -138,7 +133,7 @@ def _submit_to_portal(
     ------
     SystemExit
         If the server returns a non-2xx response.
-    '''
+    """
     url = portal_url.rstrip("/") + "/api/v1/submissions"
     handles = {}
     try:
@@ -167,15 +162,9 @@ def _submit_to_portal(
         payload = response.json()
         unique_idx = payload.get("unique_idx")
         main_logger.info("Submission accepted.")
-        main_logger.info(
-            "  unique_idx : %s", unique_idx
-        )
-        main_logger.info(
-            "  status     : %s", payload.get("status")
-        )
-        main_logger.info(
-            "  queue pos  : %s", payload.get("queue_position")
-        )
+        main_logger.info("  unique_idx : %s", unique_idx)
+        main_logger.info("  status     : %s", payload.get("status"))
+        main_logger.info("  queue pos  : %s", payload.get("queue_position"))
         main_logger.info(
             "  est. wait  : %s",
             payload.get("estimated_wait_formatted"),
@@ -201,14 +190,14 @@ def _submit_to_portal(
     version_base="1.3",
 )
 def main(cfg: DictConfig) -> None:
-    r'''
+    r"""
     Entry point: forecast all regions and submit to the portal.
 
     Parameters
     ----------
     cfg : DictConfig
         Full Hydra configuration tree.
-    '''
+    """
     if not cfg.skip_forecast:
         _run_all_forecasts(cfg)
 
