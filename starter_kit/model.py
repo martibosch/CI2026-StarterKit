@@ -374,6 +374,7 @@ class BaseModel(abc.ABC):
                     "epoch": idx_epoch,
                     "train/epoch_loss": train_loss,
                     "val/epoch_loss": val_loss,
+                    "lr": self._optimizer.param_groups[0]["lr"],
                     **{f"val/{k}": v for k, v in aux_losses.items()},
                 },
                 flush=True,
