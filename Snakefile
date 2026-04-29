@@ -5,8 +5,26 @@ REGIONS = [
     "aimip_region2",
 ]
 
-RUNS = [r for r in config.get("runs", "unet").split(",") if r]
+RUN_SETS = {
+    "wandb_grid": [
+        "baseline_parametric",
+        "baseline_sundquist",
+        "mlp_no_rh_aux2",
+        "mlp_no_rh_aux5",
+        "mlp_rh_aux2",
+        "mlp_rh_aux5",
+        "unet_no_rh_aux2",
+        "unet_no_rh_aux5",
+        "unet_rh_aux2",
+        "unet_rh_aux5",
+    ],
+}
+
+RUN_CONFIG = config.get("runs", "unet")
+RUNS = RUN_SETS.get(RUN_CONFIG, [r for r in RUN_CONFIG.split(",") if r])
 EXTRA = config.get("extra", "")
+TRAIN_EXTRA = config.get("train_extra", "")
+FORECAST_EXTRA = config.get("forecast_extra", "")
 DEVICE = config.get("device", "cuda")
 SCORES_DIR = config.get("scores_dir", "scores")
 LOG_DIR = config.get("log_dir", "logs/snakemake")
@@ -20,6 +38,14 @@ NORMALISATION_STATS = {
     "mlp_no_rh": "data/stats/normalization_no_rh_aux2.json",
     "unet_rh": "data/stats/normalization_rh_aux2.json",
     "unet_no_rh": "data/stats/normalization_no_rh_aux2.json",
+    "mlp_no_rh_aux2": "data/stats/normalization_no_rh_aux2.json",
+    "mlp_no_rh_aux5": "data/stats/normalization_no_rh_aux5.json",
+    "mlp_rh_aux2": "data/stats/normalization_rh_aux2.json",
+    "mlp_rh_aux5": "data/stats/normalization_rh_aux5.json",
+    "unet_no_rh_aux2": "data/stats/normalization_no_rh_aux2.json",
+    "unet_no_rh_aux5": "data/stats/normalization_no_rh_aux5.json",
+    "unet_rh_aux2": "data/stats/normalization_rh_aux2.json",
+    "unet_rh_aux5": "data/stats/normalization_rh_aux5.json",
 }
 
 
@@ -106,7 +132,7 @@ rule train:
     resources:
         gpu=1,
     params:
-        args=lambda w: hydra_args(w.run),
+        args=lambda w: hydra_args(w.run, extra=TRAIN_EXTRA),
     shell:
         "python scripts/train.py {params.args} 2>&1 | tee {log}"
 
@@ -124,6 +150,7 @@ rule forecast:
         args=lambda w, input, output: hydra_args(
             w.run,
             extra=(
+                f"{FORECAST_EXTRA} "
                 f"+test_data={w.split}_{w.region} "
                 f"ckpt_path={input.ckpt} "
                 f"output_path={output.forecast}"
