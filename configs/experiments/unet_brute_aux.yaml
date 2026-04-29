@@ -1,0 +1,21 @@
+# @package _global_
+
+# More surface information: 5 auxiliary fields (land/sea, geopotential,
+# lake cover, low + high vegetation cover) instead of just the first 2. Tests
+# whether surface heterogeneity helps cloud-cover prediction.
+
+defaults:
+  - override /model: unet
+
+exp_name: unet_brute_aux
+learning_rate: 0.002
+batch_size: 64
+mixed_precision: true
+
+network:
+  use_rh: true
+  input_dim: 40
+  base_channels: 32
+  depth: 3
+  n_auxiliary_fields: 5
+  normalisation_path: data/stats/normalization_rh_aux5.json

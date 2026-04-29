@@ -1,0 +1,20 @@
+# @package _global_
+
+# Deeper model: depth=4 with the default base_channels=32. Larger receptive
+# field at modest extra cost.
+
+defaults:
+  - override /model: unet
+
+exp_name: unet_brute_deep
+learning_rate: 0.001
+batch_size: 64
+mixed_precision: true
+
+network:
+  use_rh: true
+  input_dim: 37
+  base_channels: 32
+  depth: 4
+  n_auxiliary_fields: 2
+  normalisation_path: data/stats/normalization_rh_aux2.json
