@@ -3,8 +3,9 @@
 # Built for the CI 2026 hackathon starter kit
 
 # System modules
+import json
 import logging
-from typing import Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 # External modules
 import torch
@@ -12,13 +13,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # Internal modules
-from starter_kit.model import BaseModel
+from starter_kit.baselines.mlp import _normalisation_mean, _normalisation_std
+from starter_kit.baselines.utils import estimate_relative_humidity
 from starter_kit.layers import InputNormalisation
-from starter_kit.baselines.mlp import (
-    _normalisation_mean,
-    _normalisation_std,
-)
-
+from starter_kit.model import BaseModel
 
 main_logger = logging.getLogger(__name__)
 
@@ -92,10 +90,49 @@ class UNetwork(nn.Module):
         input_dim: int = 30,
         base_channels: int = 32,
         depth: int = 3,
+        use_rh: bool = False,
+        n_auxiliary_fields: int = 2,
+        normalisation_path: Optional[str] = None,
     ) -> None:
         super().__init__()
-        mean = torch.tensor(_normalisation_mean).reshape(1, -1, 1, 1)
-        std = torch.tensor(_normalisation_std).reshape(1, -1, 1, 1)
+        self.use_rh = use_rh
+        self.n_auxiliary_fields = n_auxiliary_fields
+
+        if normalisation_path is not None:
+            with open(normalisation_path) as f:
+                stats = json.load(f)
+            mean_list = stats["mean"]
+            std_list = stats["std"]
+            if len(mean_list) != input_dim:
+                raise ValueError(
+                    f"normalisation_path has {len(mean_list)} channels but "
+                    f"input_dim={input_dim}"
+                )
+            if use_rh:
+                if not stats.get("use_rh", False):
+                    raise ValueError(
+                        "use_rh=True but normalisation_path was computed "
+                        "without --use_rh"
+                    )
+                pressure_levels_pa = stats["pressure_levels_pa"]
+        elif use_rh or n_auxiliary_fields != 2:
+            raise ValueError(
+                "Hardcoded normalisation only supports use_rh=False and "
+                "n_auxiliary_fields=2; pass a normalisation_path computed "
+                "via scripts/compute_normalization.py."
+            )
+        else:
+            mean_list = _normalisation_mean
+            std_list = _normalisation_std
+
+        if use_rh:
+            self.register_buffer(
+                "pressure_levels",
+                torch.tensor(pressure_levels_pa, dtype=torch.float32).reshape(-1, 1, 1),
+            )
+
+        mean = torch.tensor(mean_list).reshape(1, -1, 1, 1)
+        std = torch.tensor(std_list).reshape(1, -1, 1, 1)
         self.normalisation = InputNormalisation(mean=mean, std=std)
 
         channels: List[int] = [base_channels * (2**i) for i in range(depth + 1)]
@@ -126,10 +163,18 @@ class UNetwork(nn.Module):
         input_level: torch.Tensor,
         input_auxiliary: torch.Tensor,
     ) -> torch.Tensor:
+        if self.use_rh:
+            rh = estimate_relative_humidity(
+                temperature=input_level[:, 0:1],
+                specific_humidity=input_level[:, 1:2],
+                pressure=self.pressure_levels,
+            )
+            input_level = torch.cat([input_level, rh], dim=1)
+
         flattened_level = input_level.reshape(
             input_level.shape[0], -1, *input_level.shape[-2:]
         )
-        sliced_aux = input_auxiliary[:, :2]
+        sliced_aux = input_auxiliary[:, : self.n_auxiliary_fields]
         x = torch.cat([flattened_level, sliced_aux], dim=1)
         x = self.normalisation(x)
 

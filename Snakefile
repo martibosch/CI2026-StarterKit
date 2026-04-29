@@ -18,6 +18,8 @@ DATA_READY = "data/train_data/.download_complete"
 NORMALISATION_STATS = {
     "mlp_rh": "data/stats/normalization_rh_aux2.json",
     "mlp_no_rh": "data/stats/normalization_no_rh_aux2.json",
+    "unet_rh": "data/stats/normalization_rh_aux2.json",
+    "unet_no_rh": "data/stats/normalization_no_rh_aux2.json",
 }
 
 
