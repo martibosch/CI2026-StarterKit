@@ -1,3 +1,7 @@
+import pathlib
+
+import yaml
+
 REGIONS = [
     "era5_region1",
     "era5_region2",
@@ -5,54 +9,55 @@ REGIONS = [
     "aimip_region2",
 ]
 
-RUN_SETS = {
-    "wandb_grid": [
-        "baseline_parametric",
-        "baseline_sundquist",
-        "mlp_no_rh_aux2",
-        "mlp_no_rh_aux5",
-        "mlp_rh_aux2",
-        "mlp_rh_aux5",
-        "unet_no_rh_aux2",
-        "unet_no_rh_aux5",
-        "unet_rh_aux2",
-        "unet_rh_aux5",
-    ],
-}
+
+def _load_run_set(name):
+    path = pathlib.Path(f"configs/run_sets/{name}.yaml")
+    if not path.exists():
+        return None
+    return yaml.safe_load(path.read_text())["runs"]
+
+
+def _normalisation_path_for(run):
+    r"""Read the experiment yaml and return its network.normalisation_path,
+    or None if unset. Snakemake calls this as a train-rule input function."""
+    exp_path = pathlib.Path(f"configs/experiments/{run}.yaml")
+    if not exp_path.exists():
+        return []
+    cfg = yaml.safe_load(exp_path.read_text()) or {}
+    path = (cfg.get("network") or {}).get("normalisation_path")
+    return [path] if path else []
+
 
 RUN_CONFIG = config.get("runs", "unet")
-RUNS = RUN_SETS.get(RUN_CONFIG, [r for r in RUN_CONFIG.split(",") if r])
+_run_set = _load_run_set(RUN_CONFIG)
+RUNS = _run_set if _run_set is not None else [r for r in RUN_CONFIG.split(",") if r]
 EXTRA = config.get("extra", "")
 TRAIN_EXTRA = config.get("train_extra", "")
 FORECAST_EXTRA = config.get("forecast_extra", "")
+TRAIN_SUITE = config.get(
+    "train_suite",
+    RUN_CONFIG if _run_set is not None else None,
+)
 DEVICE = config.get("device", "cuda")
 SCORES_DIR = config.get("scores_dir", "scores")
 LOG_DIR = config.get("log_dir", "logs/snakemake")
 TEAM_NAME = config.get("team_name", "my_team")
 DATA_READY = "data/train_data/.download_complete"
 
-# Per-run normalisation artifact. Runs not listed fall back to the hardcoded
-# stats baked into the network (only valid for use_rh=False, n_aux=2).
-NORMALISATION_STATS = {
-    "mlp_rh": "data/stats/normalization_rh_aux2.json",
-    "mlp_no_rh": "data/stats/normalization_no_rh_aux2.json",
-    "unet_rh": "data/stats/normalization_rh_aux2.json",
-    "unet_no_rh": "data/stats/normalization_no_rh_aux2.json",
-    "mlp_no_rh_aux2": "data/stats/normalization_no_rh_aux2.json",
-    "mlp_no_rh_aux5": "data/stats/normalization_no_rh_aux5.json",
-    "mlp_rh_aux2": "data/stats/normalization_rh_aux2.json",
-    "mlp_rh_aux5": "data/stats/normalization_rh_aux5.json",
-    "unet_no_rh_aux2": "data/stats/normalization_no_rh_aux2.json",
-    "unet_no_rh_aux5": "data/stats/normalization_no_rh_aux5.json",
-    "unet_rh_aux2": "data/stats/normalization_rh_aux2.json",
-    "unet_rh_aux5": "data/stats/normalization_rh_aux5.json",
-}
-
 
 def hydra_args(run, extra=""):
     return (
         f"+experiments={run} exp_name={run} device={DEVICE} {EXTRA} {extra}"
     ).strip()
+
+
+def train_extra_args():
+    extras = []
+    if TRAIN_SUITE:
+        extras.append(f"+suite={TRAIN_SUITE}")
+    if TRAIN_EXTRA:
+        extras.append(TRAIN_EXTRA)
+    return " ".join(extras)
 
 
 wildcard_constraints:
@@ -124,7 +129,7 @@ rule download_data:
 rule train:
     input:
         data=DATA_READY,
-        stats=lambda w: NORMALISATION_STATS.get(w.run, []),
+        stats=lambda w: _normalisation_path_for(w.run),
     output:
         ckpt="data/models/{run}/best_model.ckpt",
     log:
@@ -132,7 +137,7 @@ rule train:
     resources:
         gpu=1,
     params:
-        args=lambda w: hydra_args(w.run, extra=TRAIN_EXTRA),
+        args=lambda w: hydra_args(w.run, extra=train_extra_args()),
     shell:
         "python scripts/train.py {params.args} 2>&1 | tee {log}"
 

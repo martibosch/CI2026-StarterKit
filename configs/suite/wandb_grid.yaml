@@ -1,0 +1,9 @@
+# @package _global_
+
+n_epochs: 30
+
+wandb:
+  enabled: true
+  project: ci2026
+  entity: ${oc.env:WANDB_ENTITY,null}
+  mode: online

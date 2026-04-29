@@ -1,0 +1,11 @@
+runs:
+  - baseline_parametric
+  - baseline_sundquist
+  - mlp_no_rh_aux2
+  - mlp_no_rh_aux5
+  - mlp_rh_aux2
+  - mlp_rh_aux5
+  - unet_no_rh_aux2
+  - unet_no_rh_aux5
+  - unet_rh_aux2
+  - unet_rh_aux5
