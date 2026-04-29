@@ -1,0 +1,11 @@
+# @package _global_
+
+defaults:
+  - override /model: mlp
+
+exp_name: mlp_no_rh
+learning_rate: 0.001
+
+network:
+  use_rh: false
+  input_dim: 30
