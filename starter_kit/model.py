@@ -286,7 +286,12 @@ class BaseModel(abc.ABC):
         _n_samples: int = 0
         _acc_loss: float = 0.0
         self.network.train()
-        train_pbar = tqdm(self.train_loader, desc="Training", leave=False)
+        train_pbar = tqdm(
+            self.train_loader,
+            desc="Training",
+            leave=False,
+            smoothing=0.1,
+        )
         for batch in train_pbar:
             batch = self._move_to_device(batch)
 
@@ -325,7 +330,12 @@ class BaseModel(abc.ABC):
         _n_samples: int = 0
         _losses_list: List[Dict[str, float]] = []
         self.network.eval()
-        val_pbar = tqdm(self.val_loader, desc="Validation", leave=False)
+        val_pbar = tqdm(
+            self.val_loader,
+            desc="Validation",
+            leave=False,
+            smoothing=0.1,
+        )
         for batch in val_pbar:
             batch = self._move_to_device(batch)
 
@@ -384,7 +394,11 @@ class BaseModel(abc.ABC):
         torch.nn.Module
             The model loaded with the best checkpoint weights.
         """
-        epoch_pbar = tqdm(range(1, self.n_epochs + 1), desc="Epochs")
+        epoch_pbar = tqdm(
+            range(1, self.n_epochs + 1),
+            desc="Epochs",
+            smoothing=0.1,
+        )
         for idx_epoch in epoch_pbar:
             train_loss = self._train_epoch()
             val_loss, aux_losses = self._val_epoch()

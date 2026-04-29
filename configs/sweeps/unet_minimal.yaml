@@ -1,0 +1,32 @@
+program: scripts/train.py
+project: ci2026
+entity: ci2026-giub
+method: random
+metric:
+  name: val/epoch_loss
+  goal: minimize
+command:
+  - ${env}
+  - python
+  - ${program}
+  - "+experiments=unet_hpo"
+  - "+suite=wandb_grid"
+  - "n_epochs=15"
+  - ${args_no_hyphens}
+parameters:
+  learning_rate:
+    distribution: log_uniform_values
+    min: 3e-4
+    max: 3e-3
+  model.weight_decay:
+    distribution: log_uniform_values
+    min: 1e-6
+    max: 1e-4
+  network.base_channels:
+    values: [32, 64]
+  network.depth:
+    values: [3, 4]
+early_terminate:
+  type: hyperband
+  min_iter: 3
+  eta: 3
