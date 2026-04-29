@@ -9,3 +9,5 @@ learning_rate: 0.001
 network:
   use_rh: false
   input_dim: 30
+  n_auxiliary_fields: 2
+  normalisation_path: data/stats/normalization_no_rh_aux2.json

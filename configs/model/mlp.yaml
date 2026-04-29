@@ -15,3 +15,6 @@ network:
   input_dim: 30
   hidden_dim: 256
   n_layers: 4
+  use_rh: false
+  n_auxiliary_fields: 2
+  normalisation_path: null

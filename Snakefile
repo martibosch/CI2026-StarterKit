@@ -13,6 +13,13 @@ LOG_DIR = config.get("log_dir", "logs/snakemake")
 TEAM_NAME = config.get("team_name", "my_team")
 DATA_READY = "data/train_data/.download_complete"
 
+# Per-run normalisation artifact. Runs not listed fall back to the hardcoded
+# stats baked into the network (only valid for use_rh=False, n_aux=2).
+NORMALISATION_STATS = {
+    "mlp_rh": "data/stats/normalization_rh_aux2.json",
+    "mlp_no_rh": "data/stats/normalization_no_rh_aux2.json",
+}
+
 
 def hydra_args(run, extra=""):
     return (
@@ -45,6 +52,29 @@ rule test_forecasts:
         ),
 
 
+rule compute_normalization:
+    input:
+        data=DATA_READY,
+    output:
+        stats="data/stats/normalization_{rh}_aux{n_aux}.json",
+    log:
+        f"{LOG_DIR}/stats/normalization_{{rh}}_aux{{n_aux}}.log",
+    wildcard_constraints:
+        rh="rh|no_rh",
+        n_aux=r"\d+",
+    params:
+        zarr_path="data/train_data/train.zarr",
+        use_rh_flag=lambda w: "--use_rh" if w.rh == "rh" else "",
+    shell:
+        """
+        python scripts/compute_normalization.py \
+            --zarr_path {params.zarr_path} \
+            {params.use_rh_flag} \
+            --n_auxiliary_fields {wildcards.n_aux} \
+            --output_path {output.stats} 2>&1 | tee {log}
+        """
+
+
 rule download_data:
     output:
         marker=DATA_READY,
@@ -66,6 +96,7 @@ rule download_data:
 rule train:
     input:
         data=DATA_READY,
+        stats=lambda w: NORMALISATION_STATS.get(w.run, []),
     output:
         ckpt="data/models/{run}/best_model.ckpt",
     log:

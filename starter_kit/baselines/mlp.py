@@ -3,8 +3,9 @@
 # Built for the CI 2026 hackathon starter kit
 
 # System modules
+import json
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 # External modules
 import torch
@@ -126,23 +127,45 @@ class MLPNetwork(torch.nn.Module):
         hidden_dim: int = 64,
         n_layers: int = 4,
         use_rh: bool = False,
+        n_auxiliary_fields: int = 2,
+        normalisation_path: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.use_rh = use_rh
-        if use_rh:
-            self.register_buffer(
-                "pressure_levels",
-                torch.tensor(
-                    [1000_00, 850_00, 700_00, 500_00, 250_00, 100_00, 50_00],
-                    dtype=torch.float32,
-                ).reshape(-1, 1, 1),
+        self.n_auxiliary_fields = n_auxiliary_fields
+
+        if normalisation_path is not None:
+            with open(normalisation_path) as f:
+                stats = json.load(f)
+            mean = stats["mean"]
+            std = stats["std"]
+            if len(mean) != input_dim:
+                raise ValueError(
+                    f"normalisation_path has {len(mean)} channels but "
+                    f"input_dim={input_dim}"
+                )
+            if use_rh:
+                if not stats.get("use_rh", False):
+                    raise ValueError(
+                        "use_rh=True but normalisation_path was computed "
+                        "without --use_rh"
+                    )
+                pressure_levels_pa = stats["pressure_levels_pa"]
+        elif use_rh or n_auxiliary_fields != 2:
+            raise ValueError(
+                "Hardcoded normalisation only supports use_rh=False and "
+                "n_auxiliary_fields=2; pass a normalisation_path computed "
+                "via scripts/compute_normalization.py."
             )
-            # RH is bounded in [0, 1]; insert priors before the 2 aux stats.
-            mean = _normalisation_mean[:-2] + [0.5] * 7 + _normalisation_mean[-2:]
-            std = _normalisation_std[:-2] + [0.25] * 7 + _normalisation_std[-2:]
         else:
             mean = _normalisation_mean
             std = _normalisation_std
+
+        if use_rh:
+            self.register_buffer(
+                "pressure_levels",
+                torch.tensor(pressure_levels_pa, dtype=torch.float32).reshape(-1, 1, 1),
+            )
         self.normalisation = InputNormalisation(
             mean=torch.tensor(mean), std=torch.tensor(std)
         )
@@ -188,8 +211,7 @@ class MLPNetwork(torch.nn.Module):
         flattened_input_level = input_level.reshape(
             input_level.shape[0], -1, *input_level.shape[-2:]
         )
-        # We only use the land sea mask and geopotential auxiliary fields
-        sliced_auxiliary = input_auxiliary[:, :2]
+        sliced_auxiliary = input_auxiliary[:, : self.n_auxiliary_fields]
 
         # Concatenate the level and auxiliary fields
         mlp_input = torch.cat([flattened_input_level, sliced_auxiliary], dim=1)
