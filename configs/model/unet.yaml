@@ -1,7 +1,7 @@
 # @package _global_
 
 model:
-  _target_: starter_kit.baselines.unet.UNetModel
+  _target_: starter_kit.models.unet.UNetModel
   n_epochs: ${n_epochs}
   learning_rate: ${learning_rate}
   weight_decay: 1e-5
@@ -11,7 +11,7 @@ model:
   lr_factor: ${lr_factor}
 
 network:
-  _target_: starter_kit.baselines.unet.UNetwork
+  _target_: starter_kit.models.unet.UNetwork
   input_dim: 30
   base_channels: 32
   depth: 3
