@@ -1,0 +1,7 @@
+runs:
+  - unet_brute_baseline
+  - unet_brute_wide
+  - unet_brute_deep
+  - unet_brute_aux
+  - unet_brute_big_batch
+  - unet_brute_wind
