@@ -11,19 +11,20 @@ REGIONS = [
 
 
 def _load_run_set(name):
-    path = pathlib.Path(f"configs/run_sets/{name}.yaml")
+    path = pathlib.Path(f"configs/experiments/{name}.yaml")
     if not path.exists():
         return None
-    return yaml.safe_load(path.read_text())["runs"]
+    data = yaml.safe_load(path.read_text()) or {}
+    return data.get("runs")
 
 
 def _normalisation_path_for(run):
-    r"""Read the experiment yaml and return its network.normalisation_path,
+    r"""Read the model config and return its network.normalisation_path,
     or None if unset. Snakemake calls this as a train-rule input function."""
-    exp_path = pathlib.Path(f"configs/experiments/{run}.yaml")
-    if not exp_path.exists():
+    cfg_path = pathlib.Path(f"configs/model_configs/{run}.yaml")
+    if not cfg_path.exists():
         return []
-    cfg = yaml.safe_load(exp_path.read_text()) or {}
+    cfg = yaml.safe_load(cfg_path.read_text()) or {}
     path = (cfg.get("network") or {}).get("normalisation_path")
     return [path] if path else []
 
@@ -47,14 +48,14 @@ DATA_READY = "data/train_data/.download_complete"
 
 def hydra_args(run, extra=""):
     return (
-        f"+experiments={run} exp_name={run} device={DEVICE} {EXTRA} {extra}"
+        f"+model_configs={run} exp_name={run} device={DEVICE} {EXTRA} {extra}"
     ).strip()
 
 
 def train_extra_args():
     extras = []
     if TRAIN_SUITE:
-        extras.append(f"+suite={TRAIN_SUITE}")
+        extras.append(f"+experiments={TRAIN_SUITE}")
     if TRAIN_EXTRA:
         extras.append(TRAIN_EXTRA)
     return " ".join(extras)

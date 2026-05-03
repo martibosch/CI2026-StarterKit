@@ -1,3 +1,0 @@
-runs:
-  - unet_brute_wide_aux5
-  - unet_brute_xlarge

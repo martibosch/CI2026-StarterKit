@@ -1,12 +1,15 @@
 # @package _global_
 
-n_epochs: 60
-early_stop_patience: 20
+runs:
+  - unet_brute_wide_aux5
+  - unet_brute_xlarge
+
+n_epochs: 30
+early_stop_patience: 15
 
 data:
   num_workers: 6
   prefetch_factor: 4
-  lon_roll: true
 
 wandb:
   enabled: true

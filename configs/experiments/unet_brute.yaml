@@ -1,7 +1,7 @@
 # @package _global_
 
-# Same training envelope as wandb_grid so the brute-force runs land on the
-# same wandb dashboard with comparable epoch budgets and early-stop behavior.
+runs:
+  - unet_brute_wide
 
 n_epochs: 30
 early_stop_patience: 10
