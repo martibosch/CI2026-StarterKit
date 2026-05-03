@@ -19,6 +19,25 @@ from torch.utils.data import Dataset
 main_logger = logging.getLogger(__name__)
 
 
+class LonRollAugmentation:
+    r"""
+    Random circular shift along the longitude (W) axis.
+
+    Applied to all spatial tensors in the batch (input_level,
+    input_auxiliary, target) with the same shift so
+    spatial correspondence is preserved.  Applied to training samples
+    only; pass ``augmentation=None`` for validation/test.
+    """
+
+    def __call__(self, sample: dict) -> dict:
+        W = sample["input_level"].shape[-1]
+        shift = np.random.randint(0, W)
+        for key in ("input_level", "input_auxiliary", "target"):
+            if key in sample:
+                sample[key] = np.roll(sample[key], shift, axis=-1)
+        return sample
+
+
 def _ensure_3d(arr: np.ndarray) -> np.ndarray:
     r"""
     Ensure that the input array has three spatial dimensions (C, H, W).

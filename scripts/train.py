@@ -29,7 +29,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
 # Internal modules
-from starter_kit.data import TrainDataset
+from starter_kit.data import LonRollAugmentation, TrainDataset
 from starter_kit.layers import InputNormalisation
 
 main_logger = logging.getLogger(__name__)
@@ -89,9 +89,11 @@ def _build_loaders(cfg: DictConfig) -> Tuple[DataLoader, DataLoader]:
     Tuple[DataLoader, DataLoader]
         Training loader and validation loader.
     """
+    augmentation = LonRollAugmentation() if cfg.get("lon_roll", False) else None
     train_ds = TrainDataset(
         cfg.train_path,
         threads_limit=cfg.threads_limit,
+        augmentation=augmentation,
     )
     val_ds = TrainDataset(
         cfg.val_path,

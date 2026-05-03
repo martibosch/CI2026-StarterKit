@@ -6,3 +6,4 @@ prefetch_factor: 2
 threads_limit: shared
 pin_memory: true
 persistent_workers: true
+lon_roll: false
