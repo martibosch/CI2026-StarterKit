@@ -69,25 +69,74 @@ class ConvBlock(nn.Module):
         return self.block(x)
 
 
+class ConvNeXtBlock(nn.Module):
+    r"""
+    ConvNeXt residual block adapted for regional atmospheric tiles.
+
+    Depthwise 7×7 conv (replicate-padded) → LayerNorm → inverted bottleneck
+    (Linear 1→4×) → GELU → Linear 4→1× → residual add.
+    """
+
+    def __init__(self, dim: int, expansion: int = 4, kernel_size: int = 7) -> None:
+        super().__init__()
+        self._pad = kernel_size // 2
+        self.dw_conv = nn.Conv2d(dim, dim, kernel_size, groups=dim, padding=0)
+        self.norm = nn.LayerNorm(dim)
+        self.pw_expand = nn.Linear(dim, dim * expansion)
+        self.act = nn.GELU()
+        self.pw_contract = nn.Linear(dim * expansion, dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        residual = x
+        x = F.pad(x, (self._pad,) * 4, mode="replicate")
+        x = self.dw_conv(x)
+        x = x.permute(0, 2, 3, 1)  # BCHW → BHWC for LayerNorm
+        x = self.norm(x)
+        x = self.pw_contract(self.act(self.pw_expand(x)))
+        x = x.permute(0, 3, 1, 2)  # BHWC → BCHW
+        return x + residual
+
+
+class ConvNeXtStage(nn.Module):
+    r"""
+    1×1 channel projection followed by ``blocks`` ConvNeXt residual blocks.
+
+    Used as a drop-in replacement for ConvBlock inside UNetwork when
+    ``use_convnext=True``.
+    """
+
+    def __init__(self, in_ch: int, out_ch: int, blocks: int = 2) -> None:
+        super().__init__()
+        self.proj = nn.Conv2d(in_ch, out_ch, 1)
+        self.blocks = nn.Sequential(*[ConvNeXtBlock(out_ch) for _ in range(blocks)])
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.blocks(self.proj(x))
+
+
 class UNetwork(nn.Module):
     r"""
-    Small U-Net for global cloud-cover prediction.
+    U-Net for regional cloud-cover prediction.
 
-    The pressure-level fields are flattened along the level axis into
-    channels and concatenated with the first two auxiliary fields
-    (land-sea mask and orography), matching the MLP baseline so that
-    its precomputed normalisation statistics can be reused.
+    Supports two block types (``use_convnext``):
+    - ``False`` (default): original ConvBlock (GroupNorm + SiLU) — backward compatible.
+    - ``True``: ConvNeXtStage (LayerNorm + depthwise 7×7 + inverted bottleneck).
+
+    Both use replicate padding on all sides. The longitude axis no longer uses
+    circular padding because tiles are regional sub-domains.
 
     Parameters
     ----------
-    input_dim : int, default = 30
-        Number of input channels (4 vars x 7 levels + 2 aux).
-    base_channels : int, default = 32
-        Channel count of the first U-Net stage; doubled at each
-        downsampling level.
-    depth : int, default = 3
-        Number of downsampling stages. With ``depth=3`` and a 64x64
-        input, the bottleneck is 8x8.
+    input_dim : int
+        Number of input channels after normalisation (before any derived features).
+    base_channels : int
+        Channel count at the first encoder stage; doubled at each level.
+    depth : int
+        Number of downsampling stages (bottleneck spatial size = 64 / 2**depth).
+    use_convnext : bool
+        Switch to ConvNeXt blocks. Set ``blocks_per_stage`` to control depth.
+    blocks_per_stage : int
+        Number of ConvNeXt residual blocks per stage (ignored when use_convnext=False).
     """
 
     def __init__(
@@ -99,6 +148,8 @@ class UNetwork(nn.Module):
         use_wind: bool = False,
         n_auxiliary_fields: int = 2,
         normalisation_path: Optional[str] = None,
+        use_convnext: bool = False,
+        blocks_per_stage: int = 2,
     ) -> None:
         super().__init__()
         self.use_rh = use_rh
@@ -152,16 +203,21 @@ class UNetwork(nn.Module):
         std = torch.tensor(std_list).reshape(1, -1, 1, 1)
         self.normalisation = InputNormalisation(mean=mean, std=std)
 
+        def _make_stage(in_ch: int, out_ch: int) -> nn.Module:
+            if use_convnext:
+                return ConvNeXtStage(in_ch, out_ch, blocks=blocks_per_stage)
+            return ConvBlock(in_ch, out_ch)
+
         channels: List[int] = [base_channels * (2**i) for i in range(depth + 1)]
 
         self.encoders = nn.ModuleList()
         prev = input_dim
         for ch in channels[:-1]:
-            self.encoders.append(ConvBlock(prev, ch))
+            self.encoders.append(_make_stage(prev, ch))
             prev = ch
         self.pool = nn.AvgPool2d(2)
 
-        self.bottleneck = ConvBlock(channels[-2], channels[-1])
+        self.bottleneck = _make_stage(channels[-2], channels[-1])
 
         self.upsamples = nn.ModuleList()
         self.decoders = nn.ModuleList()
@@ -169,7 +225,7 @@ class UNetwork(nn.Module):
             self.upsamples.append(
                 nn.ConvTranspose2d(channels[i], channels[i - 1], 2, stride=2)
             )
-            self.decoders.append(ConvBlock(channels[i], channels[i - 1]))
+            self.decoders.append(_make_stage(channels[i], channels[i - 1]))
 
         self.head = nn.Conv2d(base_channels, 1, kernel_size=1)
         nn.init.normal_(self.head.weight, std=1e-6)
