@@ -2076,7 +2076,7 @@ packages:
 - pypi: ./
   name: ci-2026-starter-kit
   version: '1.0'
-  sha256: 9bb3952a2f681d195d48033a7e2c788cbffb7f86c8a8412b6d6c0c0e7eaad66b
+  sha256: 4ac46f586b715b0bd529bac784afa052ca6c90d5ad86a714da07696e041b0faf
   requires_python: '>=3.10,<3.13'
 - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.3.3-pyhc90fa1f_0.conda
   sha256: 37a5d8b10ea3516e2c42f870c9c351b9f7b31ff48c66d83490039f417e1e5228
