@@ -28,8 +28,11 @@ main_logger = logging.getLogger(__name__)
 
 class SphereConv2d(nn.Module):
     r"""
-    2D convolution with sphere-aware padding: circular along the
-    longitude axis (W) and replicate along the latitude axis (H).
+    2D convolution with replicate padding on both axes.
+
+    Both latitude (H) and longitude (W) axes use replicate padding because
+    the tiles cover a regional sub-domain, not the full globe — circular
+    longitude wrapping would connect spatially discontinuous edges.
     """
 
     def __init__(
@@ -44,15 +47,12 @@ class SphereConv2d(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         p = self.pad
-        x = F.pad(x, (p, p, 0, 0), mode="circular")
-        x = F.pad(x, (0, 0, p, p), mode="replicate")
+        x = F.pad(x, (p, p, p, p), mode="replicate")
         return self.conv(x)
 
 
 class ConvBlock(nn.Module):
-    r"""
-    Two SphereConv2d + GroupNorm + SiLU, the standard U-Net block.
-    """
+    r"""Two SphereConv2d + GroupNorm + SiLU."""
 
     def __init__(self, in_ch: int, out_ch: int) -> None:
         super().__init__()
