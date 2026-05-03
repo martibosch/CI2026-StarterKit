@@ -15,6 +15,7 @@ lr_patience: 7
 lr_factor: 0.25
 early_stop_patience: null
 mixed_precision: false
+grad_clip: null
 
 wandb:
   enabled: false

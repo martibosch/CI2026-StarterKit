@@ -11,6 +11,7 @@ model:
   lr_factor: ${lr_factor}
   early_stop_patience: ${early_stop_patience}
   mixed_precision: ${mixed_precision}
+  grad_clip: ${grad_clip}
 
 network:
   _target_: starter_kit.baselines.mlp.MLPNetwork

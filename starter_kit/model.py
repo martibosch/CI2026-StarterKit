@@ -111,6 +111,7 @@ class BaseModel(abc.ABC):
         lr_factor: float = 0.2,
         early_stop_patience: Optional[int] = None,
         mixed_precision: bool = False,
+        grad_clip: Optional[float] = None,
     ) -> None:
         r"""
         Initialize the base trainer.
@@ -164,6 +165,7 @@ class BaseModel(abc.ABC):
         self.lr_factor = lr_factor
         self.early_stop_patience = early_stop_patience
         self._epochs_since_best = 0
+        self.grad_clip = grad_clip
 
         # Mixed-precision is only meaningful on CUDA; silently no-op elsewhere
         # so the same config can run on CPU smoke tests.
@@ -300,11 +302,20 @@ class BaseModel(abc.ABC):
                 with torch.amp.autocast("cuda", dtype=torch.float16):
                     output_dict = self.estimate_loss(batch)
                 self._scaler.scale(output_dict["loss"]).backward()
+                if self.grad_clip is not None:
+                    self._scaler.unscale_(self._optimizer)
+                    torch.nn.utils.clip_grad_norm_(
+                        self.network.parameters(), self.grad_clip
+                    )
                 self._scaler.step(self._optimizer)
                 self._scaler.update()
             else:
                 output_dict = self.estimate_loss(batch)
                 output_dict["loss"].backward()
+                if self.grad_clip is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.network.parameters(), self.grad_clip
+                    )
                 self._optimizer.step()
 
             curr_loss = output_dict["loss"].item()
