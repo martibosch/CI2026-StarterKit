@@ -1,0 +1,15 @@
+# @package _global_
+
+n_epochs: 60
+early_stop_patience: 20
+
+data:
+  num_workers: 6
+  prefetch_factor: 4
+  lon_roll: true
+
+wandb:
+  enabled: true
+  project: ci2026
+  entity: ${oc.env:WANDB_ENTITY,null}
+  mode: online

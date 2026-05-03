@@ -1,0 +1,32 @@
+# @package _global_
+
+# Geography-agnostic ConvNeXt UNet, inspired by the CI2026 winning solution.
+#
+# Key design choices vs unet_brute_wide:
+#   - ConvNeXt blocks (depthwise 7x7 + LayerNorm + inverted bottleneck)
+#   - Replicate padding on all sides (circular longitude was wrong for regional tiles)
+#   - Longitude roll augmentation (data.lon_roll: true in suite)
+#   - No auxiliary geographic fields (land-sea mask / orography removed)
+#   - No derived features — raw T/q/u/v at 7 levels only (28 channels)
+#
+# Requires: data/stats/normalization_no_rh_aux0.json
+# Compute with: python scripts/compute_normalization.py --n_auxiliary_fields 0
+
+defaults:
+  - override /model: unet
+
+exp_name: unet_geounet
+learning_rate: 0.0003
+batch_size: 64
+mixed_precision: true
+grad_clip: 1.0
+
+network:
+  use_rh: false
+  input_dim: 28
+  base_channels: 96
+  depth: 3
+  n_auxiliary_fields: 0
+  normalisation_path: data/stats/normalization_no_rh_aux0.json
+  use_convnext: true
+  blocks_per_stage: 2
