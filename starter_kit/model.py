@@ -299,7 +299,7 @@ class BaseModel(abc.ABC):
 
             self._optimizer.zero_grad()
             if self.mixed_precision:
-                with torch.amp.autocast("cuda", dtype=torch.float16):
+                with torch.amp.autocast("cuda", dtype=torch.bfloat16):
                     output_dict = self.estimate_loss(batch)
                 self._scaler.scale(output_dict["loss"]).backward()
                 if self.grad_clip is not None:
@@ -353,7 +353,7 @@ class BaseModel(abc.ABC):
             with (
                 torch.no_grad(),
                 torch.amp.autocast(
-                    "cuda", dtype=torch.float16, enabled=self.mixed_precision
+                    "cuda", dtype=torch.bfloat16, enabled=self.mixed_precision
                 ),
             ):
                 output_dict = self.estimate_loss(batch)
