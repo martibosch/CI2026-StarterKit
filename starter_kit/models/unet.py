@@ -14,12 +14,7 @@ import torch.nn.functional as F
 
 # Internal modules
 from starter_kit.baselines.mlp import _normalisation_mean, _normalisation_std
-from starter_kit.baselines.utils import (
-    estimate_relative_humidity,
-    estimate_wind_direction_cos,
-    estimate_wind_direction_sin,
-    estimate_wind_speed,
-)
+from starter_kit.baselines.utils import estimate_relative_humidity
 from starter_kit.layers import InputNormalisation
 from starter_kit.model import BaseModel
 
@@ -145,7 +140,6 @@ class UNetwork(nn.Module):
         base_channels: int = 32,
         depth: int = 3,
         use_rh: bool = False,
-        use_wind: bool = False,
         n_auxiliary_fields: int = 2,
         normalisation_path: Optional[str] = None,
         use_convnext: bool = False,
@@ -153,7 +147,6 @@ class UNetwork(nn.Module):
     ) -> None:
         super().__init__()
         self.use_rh = use_rh
-        self.use_wind = use_wind
         self.n_auxiliary_fields = n_auxiliary_fields
 
         if normalisation_path is not None:
@@ -164,8 +157,8 @@ class UNetwork(nn.Module):
             if use_rh:
                 if not stats.get("use_rh", False):
                     raise ValueError(
-                        "use_rh=True but normalisation_path was computed "
-                        "without --use_rh"
+                        "use_rh=True but normalisation_path was computed without"
+                        " --use_rh"
                     )
                 pressure_levels_pa = stats["pressure_levels_pa"]
         elif use_rh or n_auxiliary_fields != 2:
@@ -183,16 +176,6 @@ class UNetwork(nn.Module):
                 "pressure_levels",
                 torch.tensor(pressure_levels_pa, dtype=torch.float32).reshape(-1, 1, 1),
             )
-
-        if use_wind:
-            # Splice 21 no-op stats (mean=0, std=1) just before the aux block
-            # so the wind channels emitted by forward pass through
-            # InputNormalisation unchanged. Conv-block GroupNorm handles their
-            # actual scaling downstream.
-            n_aux = n_auxiliary_fields
-            pre_aux = len(mean_list) - n_aux
-            mean_list = mean_list[:pre_aux] + [0.0] * 21 + mean_list[pre_aux:]
-            std_list = std_list[:pre_aux] + [1.0] * 21 + std_list[pre_aux:]
 
         if len(mean_list) != input_dim:
             raise ValueError(
@@ -236,10 +219,6 @@ class UNetwork(nn.Module):
         input_level: torch.Tensor,
         input_auxiliary: torch.Tensor,
     ) -> torch.Tensor:
-        if self.use_wind:
-            ua = input_level[:, 2:3]
-            va = input_level[:, 3:4]
-
         if self.use_rh:
             rh = estimate_relative_humidity(
                 temperature=input_level[:, 0:1],
@@ -247,17 +226,6 @@ class UNetwork(nn.Module):
                 pressure=self.pressure_levels,
             )
             input_level = torch.cat([input_level, rh], dim=1)
-
-        if self.use_wind:
-            wind = torch.cat(
-                [
-                    estimate_wind_speed(ua, va),
-                    estimate_wind_direction_sin(ua, va),
-                    estimate_wind_direction_cos(ua, va),
-                ],
-                dim=1,
-            )
-            input_level = torch.cat([input_level, wind], dim=1)
 
         flattened_level = input_level.reshape(
             input_level.shape[0], -1, *input_level.shape[-2:]

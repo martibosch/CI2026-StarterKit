@@ -19,6 +19,5 @@ network:
   base_channels: 32
   depth: 3
   use_rh: false
-  use_wind: false
   n_auxiliary_fields: 2
   normalisation_path: null
