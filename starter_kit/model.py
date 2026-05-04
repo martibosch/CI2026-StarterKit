@@ -375,23 +375,18 @@ class BaseModel(abc.ABC):
         }
         return val_loss, aux_losses
 
-    def log(self, log_dict: Dict, flush: bool = False) -> None:
-        r"""
-        Log metrics and optionally flush them to disk.
-
-        Parameters
-        ----------
-        log_dict : Dict
-            Metric values to record.
-        flush : bool, optional
-            Whether to flush the CSV logger immediately, by default False.
-        """
+    def log(
+        self, log_dict: Dict, flush: bool = False, step: Optional[int] = None
+    ) -> None:
         if self.log_csv:
             self.csv_logger.log_row(log_dict)
             if flush:
                 self.csv_logger.flush()
         if wandb.run is not None:
-            wandb.log(log_dict)
+            if step is not None:
+                wandb.log(log_dict, step=step)
+            else:
+                wandb.log(log_dict, commit=False)
 
     def train(self) -> torch.nn.Module:
         r"""
@@ -432,6 +427,7 @@ class BaseModel(abc.ABC):
                     **{f"val/{k}": v for k, v in aux_losses.items()},
                 },
                 flush=True,
+                step=idx_epoch,
             )
             if (
                 self.early_stop_patience is not None
