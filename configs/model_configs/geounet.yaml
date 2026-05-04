@@ -19,7 +19,7 @@ defaults:
 
 exp_name: geounet
 learning_rate: 3e-4
-n_epochs: 40
+n_epochs: 50
 batch_size: 64
 early_stop_patience: null
 

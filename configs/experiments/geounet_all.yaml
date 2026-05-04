@@ -4,8 +4,13 @@ runs:
   - geounet
   - geounet_wide
   - geounet_hilr
+  - geounet_wide_shear
+  - geounet_wide_noise
+  - geounet_wide_full
+  - geounet_wide_rh
+  - geounet_wide_rh_shear
 
-n_epochs: 40
+n_epochs: 50
 early_stop_patience: null
 
 data:

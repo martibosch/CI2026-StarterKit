@@ -2,6 +2,9 @@
 
 model:
   _target_: starter_kit.models.geounet.GeoUNetModel
+  n_epochs: ${n_epochs}
+  learning_rate: ${learning_rate}
+  early_stop_patience: ${early_stop_patience}
   weight_decay: 0.05
   best_threshold: 0.999
   use_amp: true
@@ -10,7 +13,8 @@ model:
   mask_loss_weight: 2.0
   mask_p_apply: 0.5
   scheduler: cosine
-  eta_min_ratio: 0.0
+  eta_min_ratio: 0.01
+  compile_model: true
 
 network:
   _target_: starter_kit.models.geounet.GeoUNet

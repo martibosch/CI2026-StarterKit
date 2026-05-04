@@ -25,6 +25,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from starter_kit.baselines.utils import estimate_relative_humidity
 from starter_kit.layers import InputNormalisation
 from starter_kit.model import BaseModel
 
@@ -162,6 +163,10 @@ class GeoUNet(nn.Module):
         n_levels: int = 7,
         normalisation_path: str = "",
         dropout: float = 0.0,
+        use_shear: bool = False,
+        use_rh: bool = False,
+        use_theta: bool = False,
+        training_noise_std: float = 0.0,
     ) -> None:
         super().__init__()
 
@@ -178,8 +183,33 @@ class GeoUNet(nn.Module):
         # learnable token: replaces level-field values at masked positions
         self.mask_token = nn.Parameter(torch.zeros(n_lv_ch))
 
-        # input channels: normalised level fields + mask flag
-        in_ch = n_lv_ch + 1
+        self.use_shear = use_shear
+        self.use_rh = use_rh
+        self.use_theta = use_theta
+        self.training_noise_std = training_noise_std
+        self._n_levels = n_levels
+        # channel indices for each variable (T,q,u,v ordering)
+        self._t_start = 0
+        self._q_start = n_levels
+        self._u_start = 2 * n_levels
+        self._v_start = 3 * n_levels
+
+        if use_rh or use_theta:
+            pressure_levels_pa = stats["pressure_levels_pa"]
+            self.register_buffer(
+                "pressure_levels",
+                torch.tensor(pressure_levels_pa, dtype=torch.float32).reshape(
+                    1, n_levels, 1, 1
+                ),
+            )
+
+        # input channels: normalised level fields + derived features + mask flag
+        n_derived = (
+            (n_levels if use_rh else 0)
+            + (n_levels if use_theta else 0)
+            + (n_levels - 1 if use_shear else 0)
+        )
+        in_ch = n_lv_ch + n_derived + 1
 
         dims = [base_dim * m for m in channel_mult]
         self.dims = dims
@@ -236,7 +266,8 @@ class GeoUNet(nn.Module):
         b = input_level.shape[0]
         h, w = input_level.shape[-2:]
 
-        x_raw = input_level.reshape(b, -1, h, w)
+        x_level = input_level.reshape(b, -1, h, w)
+        x_raw = x_level
 
         if input_mask is not None:
             tok = self.mask_token.view(1, -1, 1, 1)
@@ -245,11 +276,53 @@ class GeoUNet(nn.Module):
         # normalise (channel-last)
         x = self.normalisation(x_raw.movedim(1, -1)).movedim(-1, 1)
 
+        if self.training and self.training_noise_std > 0.0:
+            x = x + torch.randn_like(x) * self.training_noise_std
+
+        extra: list = []
+
+        if self.use_rh:
+            T_raw = x_level[:, self._t_start : self._t_start + self._n_levels]
+            q_raw = x_level[:, self._q_start : self._q_start + self._n_levels]
+            # RH uses exponentials, so keep it in fp32 under AMP and avoid
+            # invalid meteorological states from producing non-finite values.
+            rh = estimate_relative_humidity(
+                T_raw.float().clamp(150.0, 350.0),
+                q_raw.float().clamp(0.0, 0.1),
+                self.pressure_levels.float(),
+            )
+            rh = torch.nan_to_num(rh, nan=0.0, posinf=1.0, neginf=0.0).to(x.dtype)
+            rh = (rh - 0.5) * 4.0
+            if input_mask is not None:
+                rh = torch.where(input_mask.bool(), torch.zeros_like(rh), rh)
+            extra.append(rh)
+
+        if self.use_theta:
+            T_raw = x_level[:, self._t_start : self._t_start + self._n_levels]
+            theta = (
+                T_raw.float().clamp(150.0, 350.0)
+                * (100000.0 / self.pressure_levels.float()) ** 0.2854
+            )
+            theta = torch.nan_to_num(theta, nan=300.0, posinf=300.0, neginf=300.0)
+            theta = ((theta - 300.0) / 20.0).to(x.dtype)
+            if input_mask is not None:
+                theta = torch.where(input_mask.bool(), torch.zeros_like(theta), theta)
+            extra.append(theta)
+
+        if self.use_shear:
+            u = x[:, self._u_start : self._u_start + self._n_levels]
+            v = x[:, self._v_start : self._v_start + self._n_levels]
+            shear = torch.sqrt(
+                (u[:, 1:] - u[:, :-1]).pow(2) + (v[:, 1:] - v[:, :-1]).pow(2) + 1e-8
+            )
+            extra.append(shear)
+
         if input_mask is None:
             mask_flag = torch.zeros(b, 1, h, w, device=x.device, dtype=x.dtype)
         else:
             mask_flag = input_mask.to(dtype=x.dtype)
-        x = torch.cat([x, mask_flag], dim=1)
+
+        x = torch.cat([x, *extra, mask_flag], dim=1)
 
         # encoder
         skips: List[torch.Tensor] = []
@@ -355,9 +428,15 @@ class GeoUNetModel(BaseModel):
         scheduler: str = "cosine",
         restart_period_epochs: int = 20,
         eta_min_ratio: float = 0.0,
+        compile_model: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
+        if compile_model:
+            try:
+                self.network = torch.compile(self.network)
+            except Exception as exc:
+                main_logger.warning("torch.compile unavailable: %s", exc)
         self.mask_loss_weight = mask_loss_weight
         self.mask_p_apply = mask_p_apply
         self.mask_n_blocks_max = int(mask_n_blocks_max)

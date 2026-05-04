@@ -262,7 +262,9 @@ class BaseModel(abc.ABC):
                 f"(previous: {self._best_loss:.4f}). Saving checkpoint."
             )
             self._best_loss = val_loss
-            torch.save(self.network.state_dict(), self.best_model_path)
+            # unwrap torch.compile wrapper so checkpoints load into plain modules
+            module = getattr(self.network, "_orig_mod", self.network)
+            torch.save(module.state_dict(), self.best_model_path)
             return True
         return False
 
@@ -271,7 +273,8 @@ class BaseModel(abc.ABC):
         Load the best checkpoint from disk, placing onto the configured device.
         """
         main_logger.debug(f"Loading checkpoint from {self.best_model_path}.")
-        self.network.load_state_dict(
+        module = getattr(self.network, "_orig_mod", self.network)
+        module.load_state_dict(
             torch.load(self.best_model_path, map_location=self.device)
         )
 
