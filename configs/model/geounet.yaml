@@ -1,0 +1,21 @@
+# @package _global_
+
+model:
+  _target_: starter_kit.models.geounet.GeoUNetModel
+  weight_decay: 0.05
+  best_threshold: 0.999
+  use_amp: true
+  grad_clip: 1.0
+  warmup_epochs: 1
+  mask_loss_weight: 2.0
+  mask_p_apply: 0.5
+  scheduler: cosine
+  eta_min_ratio: 0.0
+
+network:
+  _target_: starter_kit.models.geounet.GeoUNet
+  base_dim: 96
+  depth_mult: [2, 2, 6, 2]
+  channel_mult: [1, 2, 3, 4]
+  dropout: 0.0
+  normalisation_path: data/stats/normalization_no_rh_aux0.json

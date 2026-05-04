@@ -1,0 +1,16 @@
+# @package _global_
+
+# High-LR GeoUNet ablation: learning_rate=3e-3 with same cosine schedule.
+# Tests whether the default 3e-4 is too conservative.
+
+defaults:
+  - override /model: geounet
+
+exp_name: geounet_hilr
+learning_rate: 3e-3
+n_epochs: 40
+batch_size: 64
+early_stop_patience: null
+
+network:
+  normalisation_path: data/stats/normalization_no_rh_aux0.json

@@ -1,0 +1,17 @@
+# @package _global_
+
+# Wider GeoUNet ablation: base_dim=128 instead of 96.
+# Same training recipe (cosine schedule, masking, etc.) with more capacity.
+
+defaults:
+  - override /model: geounet
+
+exp_name: geounet_wide
+learning_rate: 3e-4
+n_epochs: 40
+batch_size: 64
+early_stop_patience: null
+
+network:
+  base_dim: 128
+  normalisation_path: data/stats/normalization_no_rh_aux0.json
