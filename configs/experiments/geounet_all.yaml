@@ -9,8 +9,9 @@ runs:
   - geounet_wide_full
   - geounet_wide_rh
   - geounet_wide_rh_shear
+  - geounet_wide_rh_drh_theta
 
-n_epochs: 50
+n_epochs: 60
 early_stop_patience: null
 
 data:

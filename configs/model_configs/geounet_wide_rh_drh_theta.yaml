@@ -1,9 +1,12 @@
 # @package _global_
 
+# GeoUNet wide + per-level RH, vertical RH gradients, and potential temperature.
+# Uses lighter masking because RH already carries a direct cloud-related signal.
+
 defaults:
   - override /model: geounet
 
-exp_name: geounet_wide_rh
+exp_name: geounet_wide_rh_drh_theta
 learning_rate: 3e-4
 n_epochs: 60
 batch_size: 64
@@ -17,4 +20,6 @@ model:
 network:
   base_dim: 128
   use_rh: true
+  use_rh_gradient: true
+  use_theta: true
   normalisation_path: data/stats/normalization_rh_aux0.json

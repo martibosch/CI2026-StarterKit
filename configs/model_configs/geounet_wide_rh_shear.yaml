@@ -13,4 +13,4 @@ network:
   base_dim: 128
   use_rh: true
   use_shear: true
-  normalisation_path: data/stats/normalization_no_rh_aux0.json
+  normalisation_path: data/stats/normalization_rh_aux0.json

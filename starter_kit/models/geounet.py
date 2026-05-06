@@ -165,6 +165,7 @@ class GeoUNet(nn.Module):
         dropout: float = 0.0,
         use_shear: bool = False,
         use_rh: bool = False,
+        use_rh_gradient: bool = False,
         use_theta: bool = False,
         training_noise_std: float = 0.0,
     ) -> None:
@@ -172,12 +173,12 @@ class GeoUNet(nn.Module):
 
         stats = _load_stats(normalisation_path)
         n_lv_ch = n_level_vars * n_levels
-        assert len(stats["mean"]) == n_lv_ch, (
-            f"Expected {n_lv_ch} channels in stats, got {len(stats['mean'])}"
+        assert len(stats["mean"]) >= n_lv_ch, (
+            f"Expected at least {n_lv_ch} channels in stats, got {len(stats['mean'])}"
         )
 
-        mean = torch.tensor(stats["mean"]).float()
-        std = torch.tensor(stats["std"]).float()
+        mean = torch.tensor(stats["mean"][:n_lv_ch]).float()
+        std = torch.tensor(stats["std"][:n_lv_ch]).float()
         self.normalisation = InputNormalisation(mean=mean, std=std)
 
         # learnable token: replaces level-field values at masked positions
@@ -185,6 +186,7 @@ class GeoUNet(nn.Module):
 
         self.use_shear = use_shear
         self.use_rh = use_rh
+        self.use_rh_gradient = use_rh_gradient
         self.use_theta = use_theta
         self.training_noise_std = training_noise_std
         self._n_levels = n_levels
@@ -194,7 +196,7 @@ class GeoUNet(nn.Module):
         self._u_start = 2 * n_levels
         self._v_start = 3 * n_levels
 
-        if use_rh or use_theta:
+        if use_rh or use_rh_gradient or use_theta:
             pressure_levels_pa = stats["pressure_levels_pa"]
             self.register_buffer(
                 "pressure_levels",
@@ -203,9 +205,76 @@ class GeoUNet(nn.Module):
                 ),
             )
 
+        channel_names = stats.get("channel_names", [])
+        stats_mean = stats.get("mean", [])
+        stats_std = stats.get("std", [])
+
+        def _derived_stats(
+            names: List[str],
+            fallback_mean: float,
+            fallback_std: float,
+        ) -> Tuple[torch.Tensor, torch.Tensor]:
+            means = []
+            stds = []
+            for name in names:
+                try:
+                    idx = channel_names.index(name)
+                except ValueError:
+                    means.append(fallback_mean)
+                    stds.append(fallback_std)
+                else:
+                    means.append(float(stats_mean[idx]))
+                    stds.append(float(stats_std[idx]))
+            return torch.tensor(means).float(), torch.tensor(stds).float()
+
+        rh_mean = None
+        rh_std = None
+        if use_rh or use_rh_gradient:
+            rh_mean, rh_std = _derived_stats(
+                [f"rh@L{i}" for i in range(n_levels)],
+                fallback_mean=0.5,
+                fallback_std=0.25,
+            )
+        if use_rh:
+            self.register_buffer("rh_mean", rh_mean.reshape(1, n_levels, 1, 1))
+            self.register_buffer("rh_std", rh_std.reshape(1, n_levels, 1, 1))
+        if use_rh_gradient:
+            drh_names = [f"drh@L{i}-L{i + 1}" for i in range(n_levels - 1)]
+            if all(name in channel_names for name in drh_names):
+                drh_mean, drh_std = _derived_stats(
+                    drh_names,
+                    fallback_mean=0.0,
+                    fallback_std=0.25,
+                )
+            else:
+                drh_mean = rh_mean[1:] - rh_mean[:-1]
+                drh_std = torch.sqrt(rh_std[1:].pow(2) + rh_std[:-1].pow(2))
+            self.register_buffer("drh_mean", drh_mean.reshape(1, n_levels - 1, 1, 1))
+            self.register_buffer("drh_std", drh_std.reshape(1, n_levels - 1, 1, 1))
+        if use_theta:
+            theta_names = [f"theta@L{i}" for i in range(n_levels)]
+            if all(name in channel_names for name in theta_names):
+                theta_mean, theta_std = _derived_stats(
+                    theta_names,
+                    fallback_mean=300.0,
+                    fallback_std=20.0,
+                )
+            else:
+                pressure = torch.tensor(
+                    stats["pressure_levels_pa"], dtype=torch.float32
+                ).reshape(n_levels)
+                theta_factor = (100000.0 / pressure) ** 0.2854
+                theta_mean = (
+                    mean[self._t_start : self._t_start + n_levels] * theta_factor
+                )
+                theta_std = std[self._t_start : self._t_start + n_levels] * theta_factor
+            self.register_buffer("theta_mean", theta_mean.reshape(1, n_levels, 1, 1))
+            self.register_buffer("theta_std", theta_std.reshape(1, n_levels, 1, 1))
+
         # input channels: normalised level fields + derived features + mask flag
         n_derived = (
             (n_levels if use_rh else 0)
+            + (n_levels - 1 if use_rh_gradient else 0)
             + (n_levels if use_theta else 0)
             + (n_levels - 1 if use_shear else 0)
         )
@@ -281,7 +350,8 @@ class GeoUNet(nn.Module):
 
         extra: list = []
 
-        if self.use_rh:
+        rh = None
+        if self.use_rh or self.use_rh_gradient:
             T_raw = x_level[:, self._t_start : self._t_start + self._n_levels]
             q_raw = x_level[:, self._q_start : self._q_start + self._n_levels]
             # RH uses exponentials, so keep it in fp32 under AMP and avoid
@@ -291,11 +361,26 @@ class GeoUNet(nn.Module):
                 q_raw.float().clamp(0.0, 0.1),
                 self.pressure_levels.float(),
             )
-            rh = torch.nan_to_num(rh, nan=0.0, posinf=1.0, neginf=0.0).to(x.dtype)
-            rh = (rh - 0.5) * 4.0
+            rh = torch.nan_to_num(rh, nan=0.0, posinf=1.0, neginf=0.0)
+
+        if self.use_rh:
+            rh_feat = ((rh - self.rh_mean.float()) / (self.rh_std.float() + 1e-6)).to(
+                x.dtype
+            )
             if input_mask is not None:
-                rh = torch.where(input_mask.bool(), torch.zeros_like(rh), rh)
-            extra.append(rh)
+                rh_feat = torch.where(
+                    input_mask.bool(), torch.zeros_like(rh_feat), rh_feat
+                )
+            extra.append(rh_feat)
+
+        if self.use_rh_gradient:
+            drh = rh[:, 1:] - rh[:, :-1]
+            drh = ((drh - self.drh_mean.float()) / (self.drh_std.float() + 1e-6)).to(
+                x.dtype
+            )
+            if input_mask is not None:
+                drh = torch.where(input_mask.bool(), torch.zeros_like(drh), drh)
+            extra.append(drh)
 
         if self.use_theta:
             T_raw = x_level[:, self._t_start : self._t_start + self._n_levels]
@@ -304,7 +389,9 @@ class GeoUNet(nn.Module):
                 * (100000.0 / self.pressure_levels.float()) ** 0.2854
             )
             theta = torch.nan_to_num(theta, nan=300.0, posinf=300.0, neginf=300.0)
-            theta = ((theta - 300.0) / 20.0).to(x.dtype)
+            theta = (
+                (theta - self.theta_mean.float()) / (self.theta_std.float() + 1e-6)
+            ).to(x.dtype)
             if input_mask is not None:
                 theta = torch.where(input_mask.bool(), torch.zeros_like(theta), theta)
             extra.append(theta)
