@@ -247,8 +247,12 @@ class GeoUNet(nn.Module):
                     fallback_std=0.25,
                 )
             else:
-                drh_mean = rh_mean[1:] - rh_mean[:-1]
-                drh_std = torch.sqrt(rh_std[1:].pow(2) + rh_std[:-1].pow(2))
+                logp = torch.log(
+                    torch.tensor(stats["pressure_levels_pa"], dtype=torch.float32)
+                )
+                dlogp = (logp[1:] - logp[:-1]).abs().clamp_min(1e-6)
+                drh_mean = (rh_mean[1:] - rh_mean[:-1]) / dlogp
+                drh_std = torch.sqrt(rh_std[1:].pow(2) + rh_std[:-1].pow(2)) / dlogp
             self.register_buffer("drh_mean", drh_mean.reshape(1, n_levels - 1, 1, 1))
             self.register_buffer("drh_std", drh_std.reshape(1, n_levels - 1, 1, 1))
         if use_theta:
@@ -374,7 +378,11 @@ class GeoUNet(nn.Module):
             extra.append(rh_feat)
 
         if self.use_rh_gradient:
-            drh = rh[:, 1:] - rh[:, :-1]
+            dlogp = (
+                torch.log(self.pressure_levels.float()[:, 1:])
+                - torch.log(self.pressure_levels.float()[:, :-1])
+            ).abs()
+            drh = (rh[:, 1:] - rh[:, :-1]) / dlogp.clamp_min(1e-6)
             drh = ((drh - self.drh_mean.float()) / (self.drh_std.float() + 1e-6)).to(
                 x.dtype
             )
