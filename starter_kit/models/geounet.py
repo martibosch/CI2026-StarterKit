@@ -512,8 +512,6 @@ class GeoUNetModel(BaseModel):
         *args,
         mask_loss_weight: float = 2.0,
         mask_p_apply: float = 0.5,
-        mask_loss_weight_schedule: Optional[List[Dict[str, float]]] = None,
-        mask_p_apply_schedule: Optional[List[Dict[str, float]]] = None,
         mask_n_blocks_max: int = 3,
         mask_block_frac_max: float = 0.35,
         lon_roll_p: float = 1.0,
@@ -536,17 +534,6 @@ class GeoUNetModel(BaseModel):
                 main_logger.warning("torch.compile unavailable: %s", exc)
         self.mask_loss_weight = mask_loss_weight
         self.mask_p_apply = mask_p_apply
-        self.mask_loss_weight_schedule = self._validate_schedule(
-            mask_loss_weight_schedule,
-            "mask_loss_weight_schedule",
-            min_value=1.0,
-        )
-        self.mask_p_apply_schedule = self._validate_schedule(
-            mask_p_apply_schedule,
-            "mask_p_apply_schedule",
-            min_value=0.0,
-            max_value=1.0,
-        )
         self.mask_n_blocks_max = int(mask_n_blocks_max)
         self.mask_block_frac_max = float(mask_block_frac_max)
         self.lon_roll_p = lon_roll_p
@@ -560,55 +547,6 @@ class GeoUNetModel(BaseModel):
         self.eta_min_ratio = float(eta_min_ratio)
         self._scheduler = self._build_scheduler()
         self._global_step = 0
-        self._current_epoch = 1
-
-    @staticmethod
-    def _validate_schedule(
-        schedule: Optional[List[Dict[str, float]]],
-        name: str,
-        min_value: Optional[float] = None,
-        max_value: Optional[float] = None,
-    ) -> List[Tuple[int, float]]:
-        if not schedule:
-            return []
-        parsed = []
-        for entry in schedule:
-            try:
-                epoch = int(entry["epoch"])
-                value = float(entry["value"])
-            except (KeyError, TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"{name} entries must define numeric 'epoch' and 'value'"
-                ) from exc
-            if epoch < 1:
-                raise ValueError(f"{name} epochs must be >= 1, got {epoch}")
-            if min_value is not None and value < min_value:
-                raise ValueError(f"{name} values must be >= {min_value}, got {value}")
-            if max_value is not None and value > max_value:
-                raise ValueError(f"{name} values must be <= {max_value}, got {value}")
-            parsed.append((epoch, value))
-        return sorted(parsed, key=lambda item: item[0])
-
-    def _scheduled_value(
-        self,
-        base_value: float,
-        schedule: List[Tuple[int, float]],
-    ) -> float:
-        value = float(base_value)
-        for epoch, scheduled in schedule:
-            if epoch > self._current_epoch:
-                break
-            value = scheduled
-        return value
-
-    def _effective_mask_p_apply(self) -> float:
-        return self._scheduled_value(self.mask_p_apply, self.mask_p_apply_schedule)
-
-    def _effective_mask_loss_weight(self) -> float:
-        return self._scheduled_value(
-            self.mask_loss_weight,
-            self.mask_loss_weight_schedule,
-        )
 
     def _setup_optimizer(self) -> None:
         """Create AdamW only; skip ReduceLROnPlateau (handled by _build_scheduler)."""
@@ -689,8 +627,7 @@ class GeoUNetModel(BaseModel):
         diff = (prediction - target).abs()
         lat_w = self._lat_weights_for(batch)
         if mask is not None:
-            mask_loss_weight = self._effective_mask_loss_weight()
-            pix_w = (1.0 + (mask_loss_weight - 1.0) * mask) * lat_w
+            pix_w = (1.0 + (self.mask_loss_weight - 1.0) * mask) * lat_w
             loss = (diff * pix_w).sum() / pix_w.sum()
         else:
             loss = (diff * lat_w).mean()
@@ -741,7 +678,7 @@ class GeoUNetModel(BaseModel):
             h,
             w,
             device=batch["input_level"].device,
-            p_apply=self._effective_mask_p_apply(),
+            p_apply=self.mask_p_apply,
             n_blocks=(1, self.mask_n_blocks_max),
             block_frac=(0.10, self.mask_block_frac_max),
         )
@@ -835,7 +772,6 @@ class GeoUNetModel(BaseModel):
             smoothing=0.1,
         )
         for idx_epoch in epoch_pbar:
-            self._current_epoch = idx_epoch
             train_loss = self._train_epoch()
             val_loss, aux_losses = self._val_epoch()
             epoch_pbar.set_postfix(
@@ -851,10 +787,6 @@ class GeoUNetModel(BaseModel):
                 {
                     "epoch": idx_epoch,
                     "train/epoch_loss": train_loss,
-                    "train/effective_mask_p_apply": self._effective_mask_p_apply(),
-                    "train/effective_mask_loss_weight": (
-                        self._effective_mask_loss_weight()
-                    ),
                     "val/epoch_loss": val_loss,
                     "lr": self._optimizer.param_groups[0]["lr"],
                     **{f"val/{k}": v for k, v in aux_losses.items()},
