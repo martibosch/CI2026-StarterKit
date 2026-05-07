@@ -3,15 +3,13 @@
 # Built for the CI 2026 hackathon starter kit
 
 # System modules
-import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 # External modules
 import torch
 import torch.nn
 
-from starter_kit.baselines.utils import estimate_relative_humidity
 from starter_kit.layers import InputNormalization
 
 # Internal modules
@@ -26,7 +24,7 @@ and only the first two auxiliary fields (land sea mask and geopotential) are
 used. For each of these 30 input features we compute the mean and std across
 all spatial locations, weighted by the latitude weights, and averaged across
 all time steps in the training set. These values are stored in the lists below
-and used to initialize the InputNormalization layer in the MLPNetwork.
+and used to initialise the InputNormalization layer in the MLPNetwork.
 """
 
 _normalization_mean = [
@@ -128,46 +126,17 @@ class MLPNetwork(torch.nn.Module):
         n_layers: int = 4,
         use_rh: bool = False,
         n_auxiliary_fields: int = 2,
-        normalization_path: Optional[str] = None,
+        normalization_path: str | None = None,
     ) -> None:
         super().__init__()
-        self.use_rh = use_rh
-        self.n_auxiliary_fields = n_auxiliary_fields
-
-        if normalization_path is not None:
-            with open(normalization_path) as f:
-                stats = json.load(f)
-            mean = stats["mean"]
-            std = stats["std"]
-            if len(mean) != input_dim:
-                raise ValueError(
-                    f"normalization_path has {len(mean)} channels but "
-                    f"input_dim={input_dim}"
-                )
-            if use_rh:
-                if not stats.get("use_rh", False):
-                    raise ValueError(
-                        "use_rh=True but normalization_path was computed "
-                        "without --use_rh"
-                    )
-                pressure_levels_pa = stats["pressure_levels_pa"]
-        elif use_rh or n_auxiliary_fields != 2:
-            raise ValueError(
-                "Hardcoded normalization only supports use_rh=False and "
-                "n_auxiliary_fields=2; pass a normalization_path computed "
-                "via scripts/compute_normalization.py."
-            )
-        else:
-            mean = _normalization_mean
-            std = _normalization_std
-
         if use_rh:
-            self.register_buffer(
-                "pressure_levels",
-                torch.tensor(pressure_levels_pa, dtype=torch.float32).reshape(-1, 1, 1),
-            )
+            raise ValueError("MLPNetwork does not support use_rh=True.")
+        if n_auxiliary_fields != 2:
+            raise ValueError("MLPNetwork only supports n_auxiliary_fields=2.")
+        if normalization_path is not None:
+            raise ValueError("MLPNetwork uses built-in normalization statistics.")
         self.normalization = InputNormalization(
-            mean=torch.tensor(mean), std=torch.tensor(std)
+            mean=torch.tensor(_normalization_mean), std=torch.tensor(_normalization_std)
         )
         layers = [torch.nn.Linear(input_dim, hidden_dim), torch.nn.SiLU()]
         for _ in range(n_layers - 1):
@@ -184,7 +153,7 @@ class MLPNetwork(torch.nn.Module):
         self, input_level: torch.Tensor, input_auxiliary: torch.Tensor
     ) -> torch.Tensor:
         r"""
-        Forward pass: concatenate inputs, optionally normalize,
+        Forward pass: concatenate inputs, optionally normalise,
         then apply the MLP.
 
         Parameters
@@ -199,19 +168,12 @@ class MLPNetwork(torch.nn.Module):
         torch.Tensor
             Predictions of shape ``(B, 1, H, W)``.
         """
-        if self.use_rh:
-            rh = estimate_relative_humidity(
-                temperature=input_level[:, 0:1],
-                specific_humidity=input_level[:, 1:2],
-                pressure=self.pressure_levels,
-            )
-            input_level = torch.cat([input_level, rh], dim=1)
-
         # We collapse all levels into the channel dimension
         flattened_input_level = input_level.reshape(
             input_level.shape[0], -1, *input_level.shape[-2:]
         )
-        sliced_auxiliary = input_auxiliary[:, : self.n_auxiliary_fields]
+        # We only use the land sea mask and geopotential auxiliary fields
+        sliced_auxiliary = input_auxiliary[:, :2]
 
         # Concatenate the level and auxiliary fields
         mlp_input = torch.cat([flattened_input_level, sliced_auxiliary], dim=1)
