@@ -1,0 +1,15 @@
+# @package _global_
+
+defaults:
+  - override /model: segformer
+
+exp_name: segformer_b2_rh
+learning_rate: 6e-5
+n_epochs: 40
+batch_size: 32
+
+network:
+  mit_variant: b2
+  pretrained: true
+  use_rh: true
+  normalisation_path: data/stats/normalization_rh_aux0.json

@@ -1,0 +1,21 @@
+# @package _global_
+
+runs:
+  - segformer_b2_rh       # main bet: b2 + RH, pretrained
+  - segformer_b0_rh       # lighter: faster iteration, sanity check
+  - segformer_b3_rh       # heavier: more capacity
+  - segformer_b2          # ablation: does RH help with transformers too?
+  - segformer_b2_rh_scratch  # ablation: how much does ImageNet init help?
+
+n_epochs: 40
+early_stop_patience: null
+
+data:
+  num_workers: 6
+  prefetch_factor: 4
+
+wandb:
+  enabled: true
+  project: ci2026
+  entity: ${oc.env:WANDB_ENTITY,null}
+  mode: online
