@@ -13,9 +13,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # Internal modules
-from starter_kit.baselines.mlp import _normalisation_mean, _normalisation_std
+from starter_kit.baselines.mlp import _normalization_mean, _normalization_std
 from starter_kit.baselines.utils import estimate_relative_humidity
-from starter_kit.layers import InputNormalisation
+from starter_kit.layers import InputNormalization
 from starter_kit.model import BaseModel
 
 main_logger = logging.getLogger(__name__)
@@ -123,7 +123,7 @@ class UNetwork(nn.Module):
     Parameters
     ----------
     input_dim : int
-        Number of input channels after normalisation (before any derived features).
+        Number of input channels after normalization (before any derived features).
     base_channels : int
         Channel count at the first encoder stage; doubled at each level.
     depth : int
@@ -141,7 +141,7 @@ class UNetwork(nn.Module):
         depth: int = 3,
         use_rh: bool = False,
         n_auxiliary_fields: int = 2,
-        normalisation_path: Optional[str] = None,
+        normalization_path: Optional[str] = None,
         use_convnext: bool = False,
         blocks_per_stage: int = 2,
     ) -> None:
@@ -149,27 +149,27 @@ class UNetwork(nn.Module):
         self.use_rh = use_rh
         self.n_auxiliary_fields = n_auxiliary_fields
 
-        if normalisation_path is not None:
-            with open(normalisation_path) as f:
+        if normalization_path is not None:
+            with open(normalization_path) as f:
                 stats = json.load(f)
             mean_list = stats["mean"]
             std_list = stats["std"]
             if use_rh:
                 if not stats.get("use_rh", False):
                     raise ValueError(
-                        "use_rh=True but normalisation_path was computed without"
+                        "use_rh=True but normalization_path was computed without"
                         " --use_rh"
                     )
                 pressure_levels_pa = stats["pressure_levels_pa"]
         elif use_rh or n_auxiliary_fields != 2:
             raise ValueError(
-                "Hardcoded normalisation only supports use_rh=False and "
-                "n_auxiliary_fields=2; pass a normalisation_path computed "
+                "Hardcoded normalization only supports use_rh=False and "
+                "n_auxiliary_fields=2; pass a normalization_path computed "
                 "via scripts/compute_normalization.py."
             )
         else:
-            mean_list = _normalisation_mean
-            std_list = _normalisation_std
+            mean_list = _normalization_mean
+            std_list = _normalization_std
 
         if use_rh:
             self.register_buffer(
@@ -184,7 +184,7 @@ class UNetwork(nn.Module):
 
         mean = torch.tensor(mean_list).reshape(1, -1, 1, 1)
         std = torch.tensor(std_list).reshape(1, -1, 1, 1)
-        self.normalisation = InputNormalisation(mean=mean, std=std)
+        self.normalization = InputNormalization(mean=mean, std=std)
 
         def _make_stage(in_ch: int, out_ch: int) -> nn.Module:
             if use_convnext:
@@ -232,7 +232,7 @@ class UNetwork(nn.Module):
         )
         sliced_aux = input_auxiliary[:, : self.n_auxiliary_fields]
         x = torch.cat([flattened_level, sliced_aux], dim=1)
-        x = self.normalisation(x)
+        x = self.normalization(x)
 
         skips: List[torch.Tensor] = []
         for enc in self.encoders:

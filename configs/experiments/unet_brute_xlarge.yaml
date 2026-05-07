@@ -16,7 +16,7 @@ network:
   base_channels: 96
   depth: 3
   n_auxiliary_fields: 2
-  normalisation_path: data/stats/normalization_rh_aux2.json
+  normalization_path: data/stats/normalization_rh_aux2.json
 
 data:
   num_workers: 6

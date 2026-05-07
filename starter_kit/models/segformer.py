@@ -22,7 +22,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from starter_kit.baselines.utils import estimate_relative_humidity
-from starter_kit.layers import InputNormalisation
+from starter_kit.layers import InputNormalization
 from starter_kit.model import BaseModel
 from starter_kit.models.geounet import _load_stats, _random_lon_roll
 
@@ -51,7 +51,7 @@ class GeoSegFormer(nn.Module):
 
     def __init__(
         self,
-        normalisation_path: str = "",
+        normalization_path: str = "",
         mit_variant: str = "b2",
         pretrained: bool = True,
         n_level_vars: int = 4,
@@ -68,12 +68,12 @@ class GeoSegFormer(nn.Module):
                 "Install it with: pip install transformers"
             ) from exc
 
-        stats = _load_stats(normalisation_path)
+        stats = _load_stats(normalization_path)
         n_lv_ch = n_level_vars * n_levels
 
         mean = torch.tensor(stats["mean"][:n_lv_ch]).float()
         std = torch.tensor(stats["std"][:n_lv_ch]).float()
-        self.normalisation = InputNormalisation(mean=mean, std=std)
+        self.normalization = InputNormalization(mean=mean, std=std)
 
         self.use_rh = use_rh
         self._n_levels = n_levels
@@ -137,7 +137,7 @@ class GeoSegFormer(nn.Module):
         h, w = input_level.shape[-2:]
         x_level = input_level.reshape(b, -1, h, w)
 
-        x = self.normalisation(x_level.movedim(1, -1)).movedim(-1, 1)
+        x = self.normalization(x_level.movedim(1, -1)).movedim(-1, 1)
 
         if self.use_rh:
             T_raw = x_level[:, self._t_start : self._t_start + self._n_levels]

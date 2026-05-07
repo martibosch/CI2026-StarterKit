@@ -19,4 +19,4 @@ network:
   mit_variant: b2
   pretrained: true
   use_rh: true
-  normalisation_path: data/stats/normalization_rh_aux0.json
+  normalization_path: data/stats/normalization_rh_aux0.json

@@ -22,4 +22,4 @@ network:
   depth_mult: [2, 2, 6, 2]
   channel_mult: [1, 2, 3, 4]
   dropout: 0.0
-  normalisation_path: data/stats/normalization_no_rh_aux0.json
+  normalization_path: data/stats/normalization_no_rh_aux0.json

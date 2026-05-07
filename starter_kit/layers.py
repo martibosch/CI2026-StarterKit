@@ -14,15 +14,15 @@ import torch
 main_logger = logging.getLogger(__name__)
 
 
-class InputNormalisation(torch.nn.Module):
+class InputNormalization(torch.nn.Module):
     r"""
-    Normalises input tensors by a predefined mean and standard
+    Normalizes input tensors by a predefined mean and standard
     deviation, stored as non-trainable buffers.
 
     Mean and standard deviation are registered as buffers so they
     are included in ``state_dict()``, transferred with ``.to()``,
-    and serialised with the network checkpoint — but never updated
-    by the optimiser.
+    and serialized with the network checkpoint — but never updated
+    by the optimizer.
 
     Parameters
     ----------
@@ -37,9 +37,9 @@ class InputNormalisation(torch.nn.Module):
     Attributes
     ----------
     mean : torch.Tensor
-        Registered buffer holding the normalisation mean.
+        Registered buffer holding the normalization mean.
     std : torch.Tensor
-        Registered buffer holding the normalisation std.
+        Registered buffer holding the normalization std.
     eps : float
         Numerical stability constant.
 
@@ -47,7 +47,7 @@ class InputNormalisation(torch.nn.Module):
     --------
     >>> mean = torch.zeros(3, 1, 1)
     >>> std = torch.ones(3, 1, 1)
-    >>> norm = InputNormalisation(mean, std)
+    >>> norm = InputNormalization(mean, std)
     >>> x = torch.randn(8, 3, 64, 64)
     >>> norm(x).shape
     torch.Size([8, 3, 64, 64])
@@ -63,7 +63,7 @@ class InputNormalisation(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         r"""
-        Normalise ``x`` to zero mean and unit variance.
+        Normalize ``x`` to zero mean and unit variance.
 
         Parameters
         ----------
@@ -74,6 +74,6 @@ class InputNormalisation(torch.nn.Module):
         Returns
         -------
         torch.Tensor
-            Normalised tensor of the same shape as ``x``.
+            Normalized tensor of the same shape as ``x``.
         """
         return (x - self.mean) / (self.std + self.eps)

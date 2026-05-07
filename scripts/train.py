@@ -30,14 +30,14 @@ from torch.utils.data import DataLoader
 
 # Internal modules
 from starter_kit.data import LonRollAugmentation, TrainDataset
-from starter_kit.layers import InputNormalisation
+from starter_kit.layers import InputNormalization
 
 main_logger = logging.getLogger(__name__)
 
 
-def _load_normalisation(path: str, device: torch.device) -> InputNormalisation:
+def _load_normalization(path: str, device: torch.device) -> InputNormalization:
     r"""
-    Load an InputNormalisation layer from a checkpoint file.
+    Load an InputNormalization layer from a checkpoint file.
 
     Parameters
     ----------
@@ -48,11 +48,11 @@ def _load_normalisation(path: str, device: torch.device) -> InputNormalisation:
 
     Returns
     -------
-    InputNormalisation
-        Normalisation layer with buffers on ``device``.
+    InputNormalization
+        Normalization layer with buffers on ``device``.
     """
     state = torch.load(path, map_location=device)
-    return InputNormalisation(mean=state["mean"], std=state["std"])
+    return InputNormalization(mean=state["mean"], std=state["std"])
 
 
 def _build_network(cfg: DictConfig, device: torch.device) -> torch.nn.Module:

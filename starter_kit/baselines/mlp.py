@@ -12,7 +12,7 @@ import torch
 import torch.nn
 
 from starter_kit.baselines.utils import estimate_relative_humidity
-from starter_kit.layers import InputNormalisation
+from starter_kit.layers import InputNormalization
 
 # Internal modules
 from starter_kit.model import BaseModel
@@ -20,16 +20,16 @@ from starter_kit.model import BaseModel
 main_logger = logging.getLogger(__name__)
 
 r"""
-The normalisation mean and std values are pre-computed from the training data.
+The normalization mean and std values are pre-computed from the training data.
 As in the MLP, all pressure levels are collapsed into the channels dimension
 and only the first two auxiliary fields (land sea mask and geopotential) are
 used. For each of these 30 input features we compute the mean and std across
 all spatial locations, weighted by the latitude weights, and averaged across
 all time steps in the training set. These values are stored in the lists below
-and used to initialise the InputNormalisation layer in the MLPNetwork.
+and used to initialize the InputNormalization layer in the MLPNetwork.
 """
 
-_normalisation_mean = [
+_normalization_mean = [
     294.531359,
     287.010605,
     278.507482,
@@ -61,7 +61,7 @@ _normalisation_mean = [
     0.410844,
     2129.684371,
 ]
-_normalisation_std = [
+_normalization_std = [
     62.864550,
     61.180621,
     58.938862,
@@ -108,15 +108,15 @@ class MLPNetwork(torch.nn.Module):
         Width of each hidden layer.
     n_layers : int, optional, default = 4
         Number of hidden Linear+SiLU blocks.
-    normalisation : InputNormalisation or None, optional
-        Pre-normalisation layer applied before the MLP. When
+    normalization : InputNormalization or None, optional
+        Pre-normalization layer applied before the MLP. When
         provided it must accept the concatenated input tensor
         of shape ``(..., input_dim)``.
 
     Attributes
     ----------
-    normalisation : InputNormalisation or None
-        Normalisation layer stored as a sub-module.
+    normalization : InputNormalization or None
+        Normalization layer stored as a sub-module.
     mlp : torch.nn.Sequential
         Sequence of linear layers with SiLU activations.
     """
@@ -128,45 +128,45 @@ class MLPNetwork(torch.nn.Module):
         n_layers: int = 4,
         use_rh: bool = False,
         n_auxiliary_fields: int = 2,
-        normalisation_path: Optional[str] = None,
+        normalization_path: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.use_rh = use_rh
         self.n_auxiliary_fields = n_auxiliary_fields
 
-        if normalisation_path is not None:
-            with open(normalisation_path) as f:
+        if normalization_path is not None:
+            with open(normalization_path) as f:
                 stats = json.load(f)
             mean = stats["mean"]
             std = stats["std"]
             if len(mean) != input_dim:
                 raise ValueError(
-                    f"normalisation_path has {len(mean)} channels but "
+                    f"normalization_path has {len(mean)} channels but "
                     f"input_dim={input_dim}"
                 )
             if use_rh:
                 if not stats.get("use_rh", False):
                     raise ValueError(
-                        "use_rh=True but normalisation_path was computed "
+                        "use_rh=True but normalization_path was computed "
                         "without --use_rh"
                     )
                 pressure_levels_pa = stats["pressure_levels_pa"]
         elif use_rh or n_auxiliary_fields != 2:
             raise ValueError(
-                "Hardcoded normalisation only supports use_rh=False and "
-                "n_auxiliary_fields=2; pass a normalisation_path computed "
+                "Hardcoded normalization only supports use_rh=False and "
+                "n_auxiliary_fields=2; pass a normalization_path computed "
                 "via scripts/compute_normalization.py."
             )
         else:
-            mean = _normalisation_mean
-            std = _normalisation_std
+            mean = _normalization_mean
+            std = _normalization_std
 
         if use_rh:
             self.register_buffer(
                 "pressure_levels",
                 torch.tensor(pressure_levels_pa, dtype=torch.float32).reshape(-1, 1, 1),
             )
-        self.normalisation = InputNormalisation(
+        self.normalization = InputNormalization(
             mean=torch.tensor(mean), std=torch.tensor(std)
         )
         layers = [torch.nn.Linear(input_dim, hidden_dim), torch.nn.SiLU()]
@@ -184,7 +184,7 @@ class MLPNetwork(torch.nn.Module):
         self, input_level: torch.Tensor, input_auxiliary: torch.Tensor
     ) -> torch.Tensor:
         r"""
-        Forward pass: concatenate inputs, optionally normalise,
+        Forward pass: concatenate inputs, optionally normalize,
         then apply the MLP.
 
         Parameters
@@ -216,11 +216,11 @@ class MLPNetwork(torch.nn.Module):
         # Concatenate the level and auxiliary fields
         mlp_input = torch.cat([flattened_input_level, sliced_auxiliary], dim=1)
 
-        # Move the feature dimension to the end for normalisation and MLP
+        # Move the feature dimension to the end for normalization and MLP
         mlp_input = mlp_input.movedim(1, -1)
 
-        # Apply input normalisation
-        mlp_input = self.normalisation(mlp_input)
+        # Apply input normalization
+        mlp_input = self.normalization(mlp_input)
 
         # Apply the MLP
         prediction = self.mlp(mlp_input)

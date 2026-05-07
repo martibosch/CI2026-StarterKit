@@ -16,7 +16,7 @@ main_logger = logging.getLogger(__name__)
 
 class SundquistNetwork(torch.nn.Module):
     r"""
-    Sundqvist cloud cover parametrisation.
+    Sundqvist cloud cover parameterization.
 
     Computes per-level cloud cover as:
 
@@ -38,7 +38,7 @@ class SundquistNetwork(torch.nn.Module):
         Shape (7, 1, 1). Sigmoid maps to (0, 1).
     logit_r_sat : torch.nn.Parameter
         Scalar logit of the saturation relative humidity r_sat.
-        Sigmoid maps to (0, 1); initialised near 1.
+        Sigmoid maps to (0, 1); initialized near 1.
     pressure_levels : torch.Tensor
         Fixed pressure levels in Pa, shape (7, 1, 1).
     """

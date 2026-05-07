@@ -3,7 +3,7 @@
 # Built for the CI 2026 hackathon starter kit.
 #
 # Translation-equivariant U-Net for total cloud cover prediction.
-# Designed to generalise to unseen geographic regions:
+# Designed to generalize to unseen geographic regions:
 #   - inputs are *only* the 28 pressure-level meteorological fields
 #     (temperature, specific humidity, u, v at 7 levels). No static
 #     geography (land_sea_mask, orography, vegetation, ...) and no
@@ -26,7 +26,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from starter_kit.baselines.utils import estimate_relative_humidity
-from starter_kit.layers import InputNormalisation
+from starter_kit.layers import InputNormalization
 from starter_kit.model import BaseModel
 
 main_logger = logging.getLogger(__name__)
@@ -117,9 +117,9 @@ class ConvNeXtBlock(nn.Module):
 
 
 def _load_stats(path: str) -> Dict[str, Any]:
-    """Load precomputed normalisation stats from the existing format."""
+    """Load precomputed normalization stats from the existing format."""
     if not path:
-        raise ValueError("normalisation_path is required for GeoUNet")
+        raise ValueError("normalization_path is required for GeoUNet")
     if not path.endswith(".json"):
         path += ".json"
     if not path.startswith("/"):
@@ -128,7 +128,7 @@ def _load_stats(path: str) -> Dict[str, Any]:
         path = os.path.join(os.getcwd(), path)
     if not os.path.exists(path):
         raise FileNotFoundError(
-            f"Normalisation stats not found at {path}. "
+            f"Normalization stats not found at {path}. "
             f"Run scripts/compute_normalization.py first."
         )
     with open(path) as f:
@@ -161,7 +161,7 @@ class GeoUNet(nn.Module):
         channel_mult: Tuple[int, int, int, int] = (1, 2, 3, 4),
         n_level_vars: int = 4,
         n_levels: int = 7,
-        normalisation_path: str = "",
+        normalization_path: str = "",
         dropout: float = 0.0,
         use_shear: bool = False,
         use_rh: bool = False,
@@ -171,7 +171,7 @@ class GeoUNet(nn.Module):
     ) -> None:
         super().__init__()
 
-        stats = _load_stats(normalisation_path)
+        stats = _load_stats(normalization_path)
         n_lv_ch = n_level_vars * n_levels
         assert len(stats["mean"]) >= n_lv_ch, (
             f"Expected at least {n_lv_ch} channels in stats, got {len(stats['mean'])}"
@@ -179,7 +179,7 @@ class GeoUNet(nn.Module):
 
         mean = torch.tensor(stats["mean"][:n_lv_ch]).float()
         std = torch.tensor(stats["std"][:n_lv_ch]).float()
-        self.normalisation = InputNormalisation(mean=mean, std=std)
+        self.normalization = InputNormalization(mean=mean, std=std)
 
         # learnable token: replaces level-field values at masked positions
         self.mask_token = nn.Parameter(torch.zeros(n_lv_ch))
@@ -275,7 +275,7 @@ class GeoUNet(nn.Module):
             self.register_buffer("theta_mean", theta_mean.reshape(1, n_levels, 1, 1))
             self.register_buffer("theta_std", theta_std.reshape(1, n_levels, 1, 1))
 
-        # input channels: normalised level fields + derived features + mask flag
+        # input channels: normalized level fields + derived features + mask flag
         n_derived = (
             (n_levels if use_rh else 0)
             + (n_levels - 1 if use_rh_gradient else 0)
@@ -346,8 +346,8 @@ class GeoUNet(nn.Module):
             tok = self.mask_token.view(1, -1, 1, 1)
             x_raw = torch.where(input_mask.bool(), tok, x_raw)
 
-        # normalise (channel-last)
-        x = self.normalisation(x_raw.movedim(1, -1)).movedim(-1, 1)
+        # normalize (channel-last)
+        x = self.normalization(x_raw.movedim(1, -1)).movedim(-1, 1)
 
         if self.training and self.training_noise_std > 0.0:
             x = x + torch.randn_like(x) * self.training_noise_std

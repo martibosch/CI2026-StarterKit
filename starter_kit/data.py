@@ -123,7 +123,7 @@ class TestDataset(Dataset):
         Opens one tensorstore array per variable under ``data_path``, sharing a
         single :class:`tensorstore.Context` so concurrency limits are
         pooled across variables. Opens are dispatched together and resolved at
-        the end to amortise metadata reads.
+        the end to amortize metadata reads.
 
         Called on each worker process after forking, for more
         efficient memory usage and to avoid issues with

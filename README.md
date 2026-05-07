@@ -14,7 +14,7 @@ project. The kit includes:
 - Script to submit model predictions to the leaderboard
 - Three baseline solutions
 - Flexible configuration with Hydra
-- Best practises in implementing PyTorch models for geoscience from multi-year experience
+- Best practices in implementing PyTorch models for geoscience from multi-year experience
 
 ## The task
 
@@ -38,8 +38,8 @@ ERA5.
 The training set consists of ERA5 data from 1979-01-01 to 2018-12-31 for a
 single region (region 1). The validation and test sets consist of ERA5 and
 AIMIP data for two regions. Consequently, there are four different evaluation configurations: ERA5 for region 1, ERA5 for region 2, AIMIP for region 1, and
-AIMIP for region 2. Two different regions are tested for generalisation to
-unseen geographies, and the AIMIP configurations are tested for generalisation
+AIMIP for region 2. Two different regions are tested for generalization to
+unseen geographies, and the AIMIP configurations are tested for generalization
 to AI weather models.
 
 The ERA5 submissions are scored with the mean absolute error (MAE); AIMIP
@@ -80,7 +80,7 @@ The repository contains the following summarized directories:
 | `data/`                  | Runtime data directory (not committed). Sub-folders are `train_data/` (downloaded zarr archives and validation/test targets), `models/` (saved checkpoints and training logs, keyed by `exp_name`), and `forecasts/` (forecast netCDF files, keyed by `exp_name`).                                                                                                                                    |
 | `notebooks/`             | Place for your own Jupyter notebooks. Drop exploration and analysis notebooks here.                                                                                                                                                                                                                                                                                                                   |
 | `scripts/`               | Entry-point scripts driven by Hydra. `train.py` trains a model, `forecast.py` produces regional netCDF forecasts, `evaluate.py` scores forecasts against validation targets, and `submit.py` runs the forecast suite and POSTs predictions to the submission portal.                                                                                                                                  |
-| `starter_kit/`           | Installable Python package, installed editable by Pixi. Contains the core library code: `data.py` (PyTorch datasets), `layers.py` (input normalisation), `model.py` (abstract `BaseModel` trainer), and the `baselines/` sub-package.                                                                                                                                                                 |
+| `starter_kit/`           | Installable Python package, installed editable by Pixi. Contains the core library code: `data.py` (PyTorch datasets), `layers.py` (input normalization), `model.py` (abstract `BaseModel` trainer), and the `baselines/` sub-package.                                                                                                                                                                 |
 | `starter_kit/baselines/` | Three concrete baseline implementations: `mlp.py` (multi-layer perceptron), `parametric.py` (parametric cloud-cover scheme), and `sundquist.py` (Sundqvist diagnostic scheme). Use these as templates for your own model.                                                                                                                                                                             |
 
 ## Get started
@@ -94,7 +94,7 @@ To get started you can either use the provided Nvidia Brev launchable, which
 sets up the environment for you and automatically downloads the data, or you
 can set up the environment manually as follows:
 
-0. (Best practises) Fork the repository with GitHub and track your changes with
+0. (Best practices) Fork the repository with GitHub and track your changes with
    git in the forked repository
 
 1. Clone the repository to your local machine.
@@ -298,7 +298,7 @@ in the validation suite should look like:
 ```
 ````
 
-For the Sundqvist experiment, it is expected that the skill score is around 0., as it is normalised by test scores of a trained Sundqvist model.
+For the Sundqvist experiment, it is expected that the skill score is around 0., as it is normalized by test scores of a trained Sundqvist model.
 
 The storage of `json` files for different configurations allows you a
 programmatic evaluation of your model.
@@ -385,7 +385,7 @@ time-ordered leaderboard and to the hourly-updated official
 
 ## Baseline models
 
-Three baselines are provided, each representing a different modelling
+Three baselines are provided, each representing a different modeling
 approach:
 
 - **MLP** (`baseline_mlp`): a fully-connected neural network that takes all
@@ -399,7 +399,7 @@ approach:
 - **Sundqvist** (`baseline_sundquist`): a physically-motivated diagnostic
   scheme (Sundqvist et al., 1989) that computes cloud cover from relative
   humidity relative to a learnable critical threshold. It serves as a physical
-  reference and defines the normalisation baseline for the skill score (a
+  reference and defines the normalization baseline for the skill score (a
   skill score of ~0 corresponds to Sundqvist performance).
 
 All three follow the same training interface and can be swapped by passing
@@ -454,4 +454,4 @@ config.
 
 If you run into problems, have questions about the data, or need your email
 address whitelisted for submission, please reach out to the hackathon
-organisers.
+organizers.

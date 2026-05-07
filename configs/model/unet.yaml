@@ -20,4 +20,4 @@ network:
   depth: 3
   use_rh: false
   n_auxiliary_fields: 2
-  normalisation_path: null
+  normalization_path: null

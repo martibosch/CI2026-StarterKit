@@ -18,14 +18,14 @@ def _load_run_set(name):
     return data.get("runs")
 
 
-def _normalisation_path_for(run):
-    r"""Read the experiment config and return its network.normalisation_path,
+def _normalization_path_for(run):
+    r"""Read the experiment config and return its network.normalization_path,
     or None if unset. Snakemake calls this as a train-rule input function."""
     cfg_path = pathlib.Path(f"configs/experiments/{run}.yaml")
     if not cfg_path.exists():
         return []
     cfg = yaml.safe_load(cfg_path.read_text()) or {}
-    path = (cfg.get("network") or {}).get("normalisation_path")
+    path = (cfg.get("network") or {}).get("normalization_path")
     return [path] if path else []
 
 
@@ -122,7 +122,7 @@ rule download_data:
 rule train:
     input:
         data=DATA_READY,
-        stats=lambda w: _normalisation_path_for(w.run),
+        stats=lambda w: _normalization_path_for(w.run),
     output:
         ckpt="data/models/{run}/best_model.ckpt",
     log:
