@@ -7,9 +7,20 @@ exp_name: segformer_b2_rh
 learning_rate: 6e-5
 n_epochs: 40
 batch_size: 32
+early_stop_patience: null
 
 network:
   mit_variant: b2
   pretrained: true
   use_rh: true
   normalisation_path: data/stats/normalization_rh_aux0.json
+
+data:
+  num_workers: 6
+  prefetch_factor: 4
+
+wandb:
+  enabled: true
+  project: ci2026
+  entity: ${oc.env:WANDB_ENTITY,null}
+  mode: online

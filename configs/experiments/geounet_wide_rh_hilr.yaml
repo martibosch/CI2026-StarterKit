@@ -3,8 +3,8 @@
 defaults:
   - override /model: geounet
 
-exp_name: geounet_wide_rh_shear
-learning_rate: 3e-4
+exp_name: geounet_wide_rh_hilr
+learning_rate: 1e-3
 n_epochs: 50
 batch_size: 64
 early_stop_patience: null
@@ -12,5 +12,14 @@ early_stop_patience: null
 network:
   base_dim: 128
   use_rh: true
-  use_shear: true
   normalisation_path: data/stats/normalization_rh_aux0.json
+
+data:
+  num_workers: 6
+  prefetch_factor: 4
+
+wandb:
+  enabled: true
+  project: ci2026
+  entity: ${oc.env:WANDB_ENTITY,null}
+  mode: online

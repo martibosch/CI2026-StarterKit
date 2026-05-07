@@ -1,10 +1,12 @@
 # @package _global_
 
-runs:
-  - unet_brute_wide
+defaults:
+  - override /model: mlp
 
-n_epochs: 30
-early_stop_patience: 10
+exp_name: baseline_mlp
+learning_rate: 0.001
+n_epochs: 50
+early_stop_patience: null
 
 data:
   num_workers: 6

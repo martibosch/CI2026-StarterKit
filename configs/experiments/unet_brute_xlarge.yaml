@@ -8,6 +8,7 @@ learning_rate: 0.0008
 batch_size: 16
 mixed_precision: true
 n_epochs: 60
+early_stop_patience: null
 
 network:
   use_rh: true
@@ -16,3 +17,13 @@ network:
   depth: 3
   n_auxiliary_fields: 2
   normalisation_path: data/stats/normalization_rh_aux2.json
+
+data:
+  num_workers: 6
+  prefetch_factor: 4
+
+wandb:
+  enabled: true
+  project: ci2026
+  entity: ${oc.env:WANDB_ENTITY,null}
+  mode: online

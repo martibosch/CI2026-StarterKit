@@ -19,9 +19,9 @@ def _load_run_set(name):
 
 
 def _normalisation_path_for(run):
-    r"""Read the model config and return its network.normalisation_path,
+    r"""Read the experiment config and return its network.normalisation_path,
     or None if unset. Snakemake calls this as a train-rule input function."""
-    cfg_path = pathlib.Path(f"configs/model_configs/{run}.yaml")
+    cfg_path = pathlib.Path(f"configs/experiments/{run}.yaml")
     if not cfg_path.exists():
         return []
     cfg = yaml.safe_load(cfg_path.read_text()) or {}
@@ -29,16 +29,11 @@ def _normalisation_path_for(run):
     return [path] if path else []
 
 
-RUN_CONFIG = config.get("runs", "unet")
+RUN_CONFIG = config.get("runs", "geounet_wide_rh_hilr")
 _run_set = _load_run_set(RUN_CONFIG)
 RUNS = _run_set if _run_set is not None else [r for r in RUN_CONFIG.split(",") if r]
 EXTRA = config.get("extra", "")
-TRAIN_EXTRA = config.get("train_extra", "")
 FORECAST_EXTRA = config.get("forecast_extra", "")
-TRAIN_SUITE = config.get(
-    "train_suite",
-    RUN_CONFIG if _run_set is not None else None,
-)
 DEVICE = config.get("device", "cuda")
 SCORES_DIR = config.get("scores_dir", "scores")
 LOG_DIR = config.get("log_dir", "logs/snakemake")
@@ -51,17 +46,8 @@ TTA = config.get("tta", False)
 
 def hydra_args(run, extra=""):
     return (
-        f"+model_configs={run} exp_name={run} device={DEVICE} {EXTRA} {extra}"
+        f"+experiments={run} exp_name={run} device={DEVICE} {EXTRA} {extra}"
     ).strip()
-
-
-def train_extra_args():
-    extras = []
-    if TRAIN_SUITE:
-        extras.append(f"+experiments={TRAIN_SUITE}")
-    if TRAIN_EXTRA:
-        extras.append(TRAIN_EXTRA)
-    return " ".join(extras)
 
 
 wildcard_constraints:
@@ -144,7 +130,7 @@ rule train:
     resources:
         gpu=1,
     params:
-        args=lambda w: hydra_args(w.run, extra=train_extra_args()),
+        args=lambda w: hydra_args(w.run),
     shell:
         "python scripts/train.py {params.args} 2>&1 | tee {log}"
 

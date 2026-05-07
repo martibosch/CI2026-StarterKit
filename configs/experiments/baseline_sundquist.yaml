@@ -1,15 +1,16 @@
 # @package _global_
 
-runs:
-  - unet_geounet
+defaults:
+  - override /model: sundquist
 
-n_epochs: 60
-early_stop_patience: 20
+exp_name: baseline_sundquist
+learning_rate: 0.01
+n_epochs: 50
+early_stop_patience: null
 
 data:
   num_workers: 6
   prefetch_factor: 4
-  lon_roll: true
 
 wandb:
   enabled: true
