@@ -44,6 +44,9 @@ SCORES_DIR = config.get("scores_dir", "scores")
 LOG_DIR = config.get("log_dir", "logs/snakemake")
 TEAM_NAME = config.get("team_name", "my_team")
 DATA_READY = "data/train_data/.download_complete"
+ENSEMBLE_RUNS = [r for r in config.get("ensemble_runs", "").split(",") if r]
+ENSEMBLE_NAME = config.get("ensemble_name", "ensemble")
+TTA = config.get("tta", False)
 
 
 def hydra_args(run, extra=""):
@@ -65,6 +68,9 @@ wildcard_constraints:
     run="[^/]+",
     split="val|test",
     region="|".join(REGIONS),
+
+
+ruleorder: ensemble_forecast > forecast
 
 
 rule all:
@@ -175,6 +181,55 @@ rule evaluate:
         f"{LOG_DIR}/{{run}}/evaluate.log",
     params:
         prediction_dir=lambda w: f"data/forecasts/{w.run}",
+        team_name=TEAM_NAME,
+    shell:
+        """
+        python scripts/evaluate.py \
+            --prediction_dir {params.prediction_dir} \
+            --prefix val \
+            --to_json \
+            --team_name {params.team_name} \
+            --output_path {output.score} 2>&1 | tee {log}
+        """
+
+
+rule ensemble_forecast:
+    input:
+        ckpts=expand("data/models/{run}/best_model.ckpt", run=ENSEMBLE_RUNS),
+    output:
+        forecast=f"data/forecasts/{ENSEMBLE_NAME}/{{split}}_{{region}}.nc",
+    log:
+        f"{LOG_DIR}/{ENSEMBLE_NAME}/forecast_{{split}}_{{region}}.log",
+    resources:
+        gpu=1,
+    params:
+        base_args=hydra_args(ENSEMBLE_RUNS[0]) if ENSEMBLE_RUNS else "",
+        ckpt_list=lambda w, input: "[" + ",".join(input.ckpts) + "]",
+        tta=TTA,
+    shell:
+        """
+        python scripts/forecast.py {params.base_args} \
+            +test_data={wildcards.split}_{wildcards.region} \
+            output_path={output.forecast} \
+            "ensemble_ckpt_paths={params.ckpt_list}" \
+            tta={params.tta} 2>&1 | tee {log}
+        """
+
+
+rule ensemble_val_scores:
+    input:
+        f"{SCORES_DIR}/{ENSEMBLE_NAME}.json",
+
+
+rule ensemble_evaluate:
+    input:
+        expand(f"data/forecasts/{ENSEMBLE_NAME}/val_{{region}}.nc", region=REGIONS),
+    output:
+        score=f"{SCORES_DIR}/{ENSEMBLE_NAME}.json",
+    log:
+        f"{LOG_DIR}/{ENSEMBLE_NAME}/evaluate.log",
+    params:
+        prediction_dir=f"data/forecasts/{ENSEMBLE_NAME}",
         team_name=TEAM_NAME,
     shell:
         """
