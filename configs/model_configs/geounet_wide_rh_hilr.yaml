@@ -1,0 +1,20 @@
+# @package _global_
+
+# Best config (geounet_wide_rh) with higher learning rate.
+# The winning solution confirmed that a higher LR improved a lot.
+# Using 1e-3 (3x over the default 3e-4); existing geounet_hilr tested
+# 3e-3 on the base model, so this fills the gap for the wide+rh config.
+
+defaults:
+  - override /model: geounet
+
+exp_name: geounet_wide_rh_hilr
+learning_rate: 1e-3
+n_epochs: 50
+batch_size: 64
+early_stop_patience: null
+
+network:
+  base_dim: 128
+  use_rh: true
+  normalisation_path: data/stats/normalization_rh_aux0.json

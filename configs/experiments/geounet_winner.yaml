@@ -1,0 +1,24 @@
+# @package _global_
+
+# Experiments motivated by the winning solution description:
+#   - wider-not-deeper architecture
+#   - higher learning rate
+#   - always-on light masking (~10% spatial coverage)
+
+runs:
+  - geounet_wide_rh_flat
+  - geounet_wide_rh_hilr
+  - geounet_wide_rh_light_mask
+
+n_epochs: 50
+early_stop_patience: null
+
+data:
+  num_workers: 6
+  prefetch_factor: 4
+
+wandb:
+  enabled: true
+  project: ci2026
+  entity: ${oc.env:WANDB_ENTITY,null}
+  mode: online
