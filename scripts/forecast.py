@@ -139,11 +139,37 @@ def _load_coordinates(data_path: str) -> xr.Dataset:
         return ds[["lat", "lon"]].load()
 
 
+def _forward_batch(
+    network: torch.nn.Module,
+    batch: dict,
+    flip_h: bool = False,
+    flip_w: bool = False,
+) -> torch.Tensor:
+    """Forward pass with optional spatial flips, undone on the output."""
+    dims = []
+    if flip_h:
+        dims.append(-2)
+    if flip_w:
+        dims.append(-1)
+    if dims:
+        batch = {
+            k: torch.flip(v, dims) if v.dim() >= 2 else v for k, v in batch.items()
+        }
+    pred = network(
+        input_level=batch["input_level"],
+        input_auxiliary=batch["input_auxiliary"],
+    )
+    if dims:
+        pred = torch.flip(pred, dims)
+    return pred.clamp(0.0, 1.0)
+
+
 @torch.inference_mode()
 def _run_inference(
     network: torch.nn.Module,
     loader: DataLoader,
     device: torch.device,
+    tta: bool = False,
 ) -> np.ndarray:
     r"""
     Run the forward pass over all batches and collect predictions.
@@ -156,20 +182,24 @@ def _run_inference(
         DataLoader yielding test batches without targets.
     device : torch.device
         Device for computation.
+    tta : bool, optional
+        If True, average predictions over 4 flip augmentations
+        (identity, flip-H, flip-W, flip-both).
 
     Returns
     -------
     np.ndarray
         Predictions with shape ``(T, H, W)``, values in ``[0, 1]``.
     """
+    _tta_flips = [(False, False), (True, False), (False, True), (True, True)]
     predictions: List[np.ndarray] = []
     for batch in tqdm(loader):
         batch = {k: v.to(device) for k, v in batch.items()}
-        pred = network(
-            input_level=batch["input_level"],
-            input_auxiliary=batch["input_auxiliary"],
-        )
-        pred = pred.clamp(0.0, 1.0)
+        if tta:
+            preds = [_forward_batch(network, batch, fh, fw) for fh, fw in _tta_flips]
+            pred = torch.stack(preds, dim=0).mean(dim=0)
+        else:
+            pred = _forward_batch(network, batch)
         predictions.append(pred.squeeze(1).cpu().numpy())
     return np.concatenate(predictions, axis=0)
 
@@ -212,29 +242,42 @@ def _save_predictions(
 
 def run_forecast(cfg: DictConfig) -> None:
     r"""
-    Load a checkpoint, run inference, and save predictions.
+    Load checkpoint(s), run inference, and save predictions.
 
-    Importable entry point for programmatic use (e.g. from
-    submit.py). Also called by the Hydra CLI wrapper below.
+    Supports single-checkpoint and ensemble modes. In ensemble mode,
+    set ``ensemble_ckpt_paths`` to a list of checkpoint paths; predictions
+    are averaged across all checkpoints (and optionally TTA-augmented).
+
+    Importable entry point for programmatic use (e.g. from submit.py).
 
     Parameters
     ----------
     cfg : DictConfig
         Full Hydra configuration tree. Must contain ``input_path``,
-        ``output_path``, ``ckpt_path``, ``device``, ``network``,
-        and ``data``.
+        ``output_path``, ``device``, ``network``, and ``data``.
+        Either ``ckpt_path`` (single) or ``ensemble_ckpt_paths`` (list).
     """
     device = torch.device(cfg.device)
-
-    network = _build_network(cfg.network, device)
-    if cfg.ckpt_path is not None:
-        network = _load_checkpoint(network, cfg.ckpt_path, device)
-    network = network.eval()
+    tta = cfg.get("tta", False)
 
     loader = _build_loader(cfg.input_path, cfg.data)
     coord_ds = _load_coordinates(cfg.input_path)
 
-    predictions = _run_inference(network, loader, device)
+    ensemble_paths = list(cfg.get("ensemble_ckpt_paths") or [])
+    if ensemble_paths:
+        all_preds = []
+        for ckpt_path in ensemble_paths:
+            network = _build_network(cfg.network, device)
+            network = _load_checkpoint(network, ckpt_path, device)
+            network = network.eval()
+            all_preds.append(_run_inference(network, loader, device, tta=tta))
+        predictions = np.mean(all_preds, axis=0)
+    else:
+        network = _build_network(cfg.network, device)
+        if cfg.ckpt_path is not None:
+            network = _load_checkpoint(network, cfg.ckpt_path, device)
+        network = network.eval()
+        predictions = _run_inference(network, loader, device, tta=tta)
 
     os.makedirs(os.path.split(cfg.output_path)[0], exist_ok=True)
     _save_predictions(predictions, coord_ds, cfg.output_path)

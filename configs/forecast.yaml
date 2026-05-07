@@ -11,3 +11,8 @@ output_path: data/forecasts/${exp_name}/forecast.nc
 
 device: cpu
 batch_size: 32
+tta: false
+
+# Ensemble: set to a list of checkpoint paths to average predictions.
+# When non-empty, ckpt_path is ignored.
+ensemble_ckpt_paths: []
