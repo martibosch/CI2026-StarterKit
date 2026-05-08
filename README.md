@@ -5,6 +5,16 @@
 [![Live Leaderboard](https://img.shields.io/badge/Live%20Leaderboard-FFD21E?style=for-the-badge&logo=huggingface&logoColor=000)](https://tobifinn-ci2026-hackathon-leaderboard.hf.space/)
 [![Dataset](https://img.shields.io/badge/Dataset-CI2026Hackathon-FF9D00?style=for-the-badge&logo=huggingface&logoColor=000)](https://huggingface.co/datasets/tobifinn/CI2026Hackathon)
 
+## What's new in this fork
+
+- **Snakemake workflow**: a single `snakemake --config runs=<exp>` command chains training, validation forecasting, and evaluation end-to-end, replacing the need to invoke each script manually.
+- **Weights & Biases integration**: training metrics and hyperparameters are automatically logged to a W&B project, enabling experiment tracking and comparison across runs.
+- **Pixi on Brev**: the Nvidia Brev launchable now bootstraps the full Pixi environment (including CUDA dependencies) automatically on launch, so no manual setup is required on the cloud instance.
+
+See a blog post with more details on the changes at [martibosch.github.io/ci2026-good-practices](https://martibosch.github.io/ci2026-good-practices).
+
+______________________________________________________________________
+
 This is the official starter kit for the Climate Informatics 26 hackathon. It
 contains prepared code and scripts to help you get started with your hackathon
 project. The kit includes:
